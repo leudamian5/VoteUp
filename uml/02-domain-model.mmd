@@ -1,0 +1,203 @@
+%% VoteUp — Step 1 first-take UML (Process §1)
+%% Package voteup.model — domain entities + VoteUpModel facade
+%% Locked design decisions used as context (first take of attrs/ops).
+
+classDiagram
+    direction TB
+
+    namespace voteup.model {
+        class Role {
+            <<enumeration>>
+            USER
+            MOD
+            ADMIN
+        }
+
+        class EngagementType {
+            <<enumeration>>
+            LIKE
+            DISLIKE
+        }
+
+        class LeaderboardPeriod {
+            <<enumeration>>
+            DAILY
+            WEEKLY
+            MONTHLY
+        }
+
+        class User {
+            -String userId
+            -String username
+            -String passwordHash
+            -String bio
+            -String profilePictureUrl
+            -Role role
+            -boolean isDeleted
+            -boolean isPermanentlyBanned
+            -LocalDateTime banExpiresAt
+            -int failedLoginAttempts
+            -LocalDateTime lockoutExpiresAt
+            -LocalDateTime lastFailedLogin
+            -int lockoutTier
+            -LocalDateTime lastLockEndedAt
+            -LocalDateTime createdAt
+            -List~Achievement~ achievements
+            +User(String userId, String username, String passwordHash)
+            +follow(User target) void
+            +unfollow(User target) void
+            +block(User target) void
+            +unblock(User target) void
+            +isTempBanned() boolean
+            +isLockedOut() boolean
+        }
+
+        class Follow {
+            -User follower
+            -User followee
+            -LocalDateTime createdAt
+            +Follow(User follower, User followee)
+        }
+
+        class Block {
+            -User blocker
+            -User blocked
+            -LocalDateTime createdAt
+            +Block(User blocker, User blocked)
+        }
+
+        class SessionToken {
+            -String tokenId
+            -User user
+            -LocalDateTime issuedAt
+            -LocalDateTime expiresAt
+            -boolean revoked
+            +SessionToken(String tokenId, User user, LocalDateTime expiresAt)
+            +isValid() boolean
+            +revoke() void
+        }
+
+        class Post {
+            -String postId
+            -User author
+            -String textContent
+            -String imageUrl
+            -LocalDateTime createdAt
+            -Post parentPost
+            -List~Tag~ tags
+            -boolean isDeleted
+            -User deletedBy
+            +Post(String postId, User author, String textContent, String imageUrl)
+            +Post(String postId, User author, String textContent, String imageUrl, Post parent)
+            +addTag(Tag tag) void
+            +removeTag(Tag tag) void
+            +score() int
+            +isReply() boolean
+        }
+
+        class Engagement {
+            -String engagementId
+            -User user
+            -Post post
+            -EngagementType type
+            -LocalDateTime createdAt
+            +Engagement(String engagementId, User user, Post post, EngagementType type)
+        }
+
+        class Tag {
+            -String name
+            +Tag(String name)
+        }
+
+        class Leaderboard {
+            -String leaderboardId
+            -LeaderboardPeriod period
+            -LocalDateTime lastResetTime
+            -List~User~ topTenUsers
+            +Leaderboard(String leaderboardId, LeaderboardPeriod period)
+            +calculateStandings() List~User~
+            +resolveTie(User u1, User u2) User
+            +reset() void
+        }
+
+        class Achievement {
+            -String achievementId
+            -String title
+            -LocalDateTime dateEarned
+            -LeaderboardPeriod leaderboardPeriod
+            -User user
+            +Achievement(String achievementId, User user, String title, LeaderboardPeriod period)
+        }
+
+        class VoteUpModel {
+            -Map~String_User~ users
+            -Map~String_Post~ posts
+            -List~Engagement~ engagements
+            -List~Follow~ follows
+            -List~Block~ blocks
+            -Map~String_SessionToken~ sessions
+            -Map~LeaderboardPeriod_Leaderboard~ leaderboards
+            +VoteUpModel()
+            +register(String username, String password) User
+            +login(String username, String password) SessionToken
+            +logout(User user) void
+            +deleteAccount(User user) void
+            +updateProfile(User actor, String bio, String profilePictureUrl) void
+            +getProfile(User viewer, User target) User
+            +followUser(User actor, User target) void
+            +unfollowUser(User actor, User target) void
+            +blockUser(User actor, User target) void
+            +unblockUser(User actor, User target) void
+            +createPost(User author, String text, String imageUrl, List~Tag~ tags) Post
+            +createReply(User author, Post parent, String text, String imageUrl) Post
+            +deletePost(User actor, Post post) void
+            +addTags(User actor, Post post, List~Tag~ tags) void
+            +removeTags(User actor, Post post, List~Tag~ tags) void
+            +applyEngagement(User user, Post post, EngagementType type) void
+            +removeEngagement(User user, Post post) void
+            +getMainFeed(User viewer, int offset, int limit) List~Post~
+            +getFollowingFeed(User viewer, int offset, int limit) List~Post~
+            +getTagFeed(User viewer, Tag tag, int offset, int limit) List~Post~
+            +getPostWithReplies(User viewer, Post post) List~Post~
+            +searchUsers(User viewer, String query) List~User~
+            +searchByTag(User viewer, String tagName) List~Post~
+            +issueTempBan(User mod, User target, int durationHours) void
+            +issuePermBan(User mod, User target) void
+            +promoteToMod(User admin, User target) void
+            +demoteFromMod(User admin, User target) void
+            +getStandings(LeaderboardPeriod period) List~User~
+            +resetLeaderboard(LeaderboardPeriod period) void
+        }
+    }
+
+    AbstractModel <|-- VoteUpModel : extends
+    User --> Role : has
+    User "1" *-- "0..*" Achievement : earns
+    Follow --> User : follower
+    Follow --> User : followee
+    Block --> User : blocker
+    Block --> User : blocked
+    SessionToken --> User : belongsTo
+    Post --> User : authoredBy
+    Post "0..1" --> Post : parentReplyChain
+    Post --> Tag : contains
+    Post --> User : deletedBy
+    Engagement --> User : interactiveUser
+    Engagement --> Post : targetedPost
+    Engagement --> EngagementType : type
+    Leaderboard --> LeaderboardPeriod : period
+    Leaderboard --> User : tracksTopTen
+    Achievement --> LeaderboardPeriod : period
+    Achievement --> User : awardedTo
+    VoteUpModel o--> User
+    VoteUpModel o--> Post
+    VoteUpModel o--> Engagement
+    VoteUpModel o--> Follow
+    VoteUpModel o--> Block
+    VoteUpModel o--> SessionToken
+    VoteUpModel o--> Leaderboard
+
+    %% Note: AbstractModel is defined in 01-mvc-framework.mmd
+    class AbstractModel {
+        <<abstract>>
+    }

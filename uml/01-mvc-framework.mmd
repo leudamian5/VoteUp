@@ -1,0 +1,98 @@
+%% VoteUp — Step 1 first-take UML (Process §1)
+%% Package: MVC framework types in voteup.model / voteup.controller / voteup.view
+%% First take — not final; reverse-engineer later from code.
+
+classDiagram
+    direction TB
+
+    namespace voteup.model {
+        class Model {
+            <<interface>>
+            +notifyChanged(ModelEvent event) void
+        }
+
+        class ModelListener {
+            <<interface>>
+            +modelChanged(ModelEvent event) void
+        }
+
+        class ModelEvent {
+            -Object source
+            -int id
+            -String actionCommand
+            -Object data
+            +ModelEvent(Object source, int id, String actionCommand)
+            +ModelEvent(Object source, int id, String actionCommand, Object data)
+            +getData() Object
+        }
+
+        class AbstractModel {
+            <<abstract>>
+            -List~ModelListener~ listeners
+            +AbstractModel()
+            +addModelListener(ModelListener l) void
+            +removeModelListener(ModelListener l) void
+            +notifyChanged(ModelEvent event) void
+        }
+    }
+
+    namespace voteup.controller {
+        class Controller {
+            <<interface>>
+            +setModel(Model model) void
+            +getModel() Model
+            +setView(View view) void
+            +getView() View
+        }
+
+        class AbstractController {
+            <<abstract>>
+            -Set~Model~ registeredModels
+            -Set~View~ registeredViews
+            +AbstractController()
+            +addModel(Model model) void
+            +removeModel(Model model) void
+            +addView(View view) void
+            +removeView(View view) void
+            +getModels() Set~Model~
+            +getViews() Set~View~
+            +setModelProperty(String propertyName, Object value) void
+        }
+    }
+
+    namespace voteup.view {
+        class View {
+            <<interface>>
+            +setController(Controller controller) void
+            +getController() Controller
+            +setModel(Model model) void
+            +getModel() Model
+        }
+
+        class JFrameView {
+            <<abstract>>
+            -Controller controller
+            -Model model
+            +JFrameView(Model model, Controller controller)
+            +registerWithModel() void
+            +setController(Controller c) void
+            +getController() Controller
+            +setModel(Model m) void
+            +getModel() Model
+        }
+    }
+
+    AbstractModel ..|> Model : implements
+    AbstractModel o--> ModelListener : notifies
+    ModelEvent ..> Model : source typically
+    AbstractController ..|> Controller : implements
+    AbstractController --> Model : manages
+    AbstractController --> View : manages
+    JFrameView ..|> View : implements
+    JFrameView ..|> ModelListener : implements
+    JFrameView --> Controller : uses
+    JFrameView --> Model : observes
+    Controller --> Model : accesses
+    Controller --> View : accesses
+    View --> Controller : accesses
+    View --> Model : accesses

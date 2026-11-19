@@ -1,0 +1,106 @@
+%% VoteUp — Step 1 first-take UML (Process §1)
+%% Package voteup.model.exception (or voteup.util) — initial exception set
+%% Operations on VoteUpModel / VoteUpController declare these with throws.
+
+classDiagram
+    direction TB
+
+    namespace voteup.model.exception {
+        class VoteUpException {
+            <<abstract>>
+            -String message
+            +VoteUpException(String message)
+            +VoteUpException(String message, Throwable cause)
+        }
+
+        class AuthenticationException {
+            +AuthenticationException(String message)
+        }
+
+        class AuthorizationException {
+            +AuthorizationException(String message)
+        }
+
+        class LockoutException {
+            -LocalDateTime unlockAt
+            +LockoutException(String message, LocalDateTime unlockAt)
+            +getUnlockAt() LocalDateTime
+        }
+
+        class BannedException {
+            -boolean permanent
+            -LocalDateTime banExpiresAt
+            +BannedException(String message, boolean permanent, LocalDateTime banExpiresAt)
+        }
+
+        class UsernameTakenException {
+            +UsernameTakenException(String message)
+        }
+
+        class UserNotFoundException {
+            +UserNotFoundException(String message)
+        }
+
+        class ProfileUnavailableException {
+            +ProfileUnavailableException(String message)
+        }
+
+        class SocialException {
+            +SocialException(String message)
+        }
+
+        class PostEmptyException {
+            +PostEmptyException(String message)
+        }
+
+        class PostNotFoundException {
+            +PostNotFoundException(String message)
+        }
+
+        class PostForbiddenException {
+            +PostForbiddenException(String message)
+        }
+
+        class ReplyBlockedException {
+            +ReplyBlockedException(String message)
+        }
+
+        class EngagementException {
+            +EngagementException(String message)
+        }
+
+        class ModerationException {
+            +ModerationException(String message)
+        }
+
+        class ValidationException {
+            +ValidationException(String message)
+        }
+
+        class StorageException {
+            +StorageException(String message)
+            +StorageException(String message, Throwable cause)
+        }
+    }
+
+    java.lang.Exception <|-- VoteUpException : extends
+    VoteUpException <|-- AuthenticationException
+    VoteUpException <|-- AuthorizationException
+    VoteUpException <|-- LockoutException
+    VoteUpException <|-- BannedException
+    VoteUpException <|-- UsernameTakenException
+    VoteUpException <|-- UserNotFoundException
+    VoteUpException <|-- ProfileUnavailableException
+    VoteUpException <|-- SocialException
+    VoteUpException <|-- PostEmptyException
+    VoteUpException <|-- PostNotFoundException
+    VoteUpException <|-- PostForbiddenException
+    VoteUpException <|-- ReplyBlockedException
+    VoteUpException <|-- EngagementException
+    VoteUpException <|-- ModerationException
+    VoteUpException <|-- ValidationException
+    VoteUpException <|-- StorageException
+
+    class java.lang.Exception {
+        <<Java SE>>
+    }

@@ -1,0 +1,40 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'voteup'
+version = '1.0-SNAPSHOT'
+
+java {
+    // Course materials use 17; JDK on this machine can compile to 17
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'voteup.Main'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+tasks.register('javadocAll', Javadoc) {
+    group = 'documentation'
+    description = 'Generate Javadoc with all visibility levels (Process step 5)'
+    source = sourceSets.main.allJava
+    classpath = sourceSets.main.compileClasspath
+    options.memberLevel = JavadocMemberLevel.PRIVATE
+    failOnError = false
+}

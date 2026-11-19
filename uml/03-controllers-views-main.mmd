@@ -1,0 +1,115 @@
+%% VoteUp — Step 1 first-take UML (Process §1)
+%% Packages voteup.controller, voteup.view, voteup (Main)
+%% Operations declare thrown exceptions (see 04-exceptions.mmd).
+
+classDiagram
+    direction TB
+
+    namespace voteup.controller {
+        class VoteUpController {
+            -VoteUpModel model
+            +VoteUpController()
+            +VoteUpController(VoteUpModel model)
+            +register(String username, String password) boolean
+            +login(String username, String password) SessionToken
+            +logout(User user) void
+            +deleteAccount(User user) void
+            +updateProfile(User actor, String bio, String profilePictureUrl) void
+            +getProfile(User viewer, User target) User
+            +follow(User actor, User target) void
+            +unfollow(User actor, User target) void
+            +block(User actor, User target) void
+            +unblock(User actor, User target) void
+            +createPost(User author, String text, String img, List~Tag~ tags) Post
+            +createReply(User author, Post parent, String text, String img) Post
+            +deletePost(User actor, Post post) void
+            +addTags(User actor, Post post, List~Tag~ tags) void
+            +removeTags(User actor, Post post, List~Tag~ tags) void
+            +applyEngagement(User user, Post post, EngagementType type) void
+            +removeEngagement(User user, Post post) void
+            +getMainFeed(User viewer, int offset, int limit) List~Post~
+            +getFollowingFeed(User viewer, int offset, int limit) List~Post~
+            +getTagFeed(User viewer, Tag tag, int offset, int limit) List~Post~
+            +getPostWithReplies(User viewer, Post post) List~Post~
+            +searchUsers(User viewer, String query) List~User~
+            +searchByTag(User viewer, String tagName) List~Post~
+            +issueTempBan(User mod, User target, int durationHours) void
+            +issuePermBan(User mod, User target) void
+            +promoteToMod(User admin, User target) void
+            +demoteFromMod(User admin, User target) void
+            +getStandings(LeaderboardPeriod period) List~User~
+            +resetLeaderboard(LeaderboardPeriod period) void
+        }
+    }
+
+    namespace voteup.view {
+        class LoginView {
+            +LoginView(Model model, Controller controller)
+            +show() void
+            +showError(String message) void
+            +modelChanged(ModelEvent event) void
+        }
+
+        class MainFeedView {
+            +MainFeedView(Model model, Controller controller)
+            +show() void
+            +refreshFeed() void
+            +showError(String message) void
+            +modelChanged(ModelEvent event) void
+        }
+
+        class FollowingFeedView {
+            +FollowingFeedView(Model model, Controller controller)
+            +show() void
+            +modelChanged(ModelEvent event) void
+        }
+
+        class TagFeedView {
+            +TagFeedView(Model model, Controller controller)
+            +show(Tag tag) void
+            +modelChanged(ModelEvent event) void
+        }
+
+        class PostPageView {
+            +PostPageView(Model model, Controller controller)
+            +show(Post post) void
+            +modelChanged(ModelEvent event) void
+        }
+
+        class ProfileView {
+            +ProfileView(Model model, Controller controller)
+            +show(User target) void
+            +modelChanged(ModelEvent event) void
+        }
+    }
+
+    namespace voteup {
+        class Main {
+            +main(String[] args)$ void
+        }
+    }
+
+    class AbstractController {
+        <<abstract>>
+    }
+    class JFrameView {
+        <<abstract>>
+    }
+    class VoteUpModel
+    class Model
+    class Controller
+    class View
+
+    AbstractController <|-- VoteUpController : extends
+    VoteUpController --> VoteUpModel : manipulates
+    JFrameView <|-- LoginView : extends
+    JFrameView <|-- MainFeedView : extends
+    JFrameView <|-- FollowingFeedView : extends
+    JFrameView <|-- TagFeedView : extends
+    JFrameView <|-- PostPageView : extends
+    JFrameView <|-- ProfileView : extends
+    Main ..> VoteUpModel : creates
+    Main ..> VoteUpController : creates
+    Main ..> LoginView : creates
+    VoteUpController ..> Model : via MVC
+    VoteUpController ..> View : via MVC
