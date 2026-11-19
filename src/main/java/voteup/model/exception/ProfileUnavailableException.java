@@ -1,7 +1,14 @@
 package voteup.model.exception;
 
 /**
- * Skeleton (Process step 2). API details added in step 3.
+ * The profile cannot be viewed (e.g. due to a block).
  */
 public class ProfileUnavailableException extends VoteUpException {
+
+    /**
+     * @param message detail message
+     */
+    public ProfileUnavailableException(String message) {
+        super(message);
+    }
 }

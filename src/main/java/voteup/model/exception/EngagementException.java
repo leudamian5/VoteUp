@@ -1,7 +1,14 @@
 package voteup.model.exception;
 
 /**
- * Skeleton (Process step 2). API details added in step 3.
+ * A like/dislike engagement could not be applied.
  */
 public class EngagementException extends VoteUpException {
+
+    /**
+     * @param message detail message
+     */
+    public EngagementException(String message) {
+        super(message);
+    }
 }

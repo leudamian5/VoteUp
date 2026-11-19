@@ -1,7 +1,14 @@
 package voteup.model.exception;
 
 /**
- * Skeleton (Process step 2). API details added in step 3.
+ * A moderation action was rejected.
  */
 public class ModerationException extends VoteUpException {
+
+    /**
+     * @param message detail message
+     */
+    public ModerationException(String message) {
+        super(message);
+    }
 }

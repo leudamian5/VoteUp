@@ -1,7 +1,38 @@
 package voteup.model;
 
+import java.time.LocalDateTime;
+
 /**
- * Skeleton (Process step 2). API details added in step 3.
+ * Directed follow relationship from {@code follower} to {@code followee}.
  */
 public class Follow {
+
+    private User follower;
+    private User followee;
+    private LocalDateTime createdAt;
+
+    /**
+     * @param follower user who follows
+     * @param followee user being followed
+     */
+    public Follow(User follower, User followee) {
+        this.follower = follower;
+        this.followee = followee;
+        this.createdAt = LocalDateTime.now();
+    }
+
+    /** @return follower */
+    public User getFollower() {
+        return follower;
+    }
+
+    /** @return followee */
+    public User getFollowee() {
+        return followee;
+    }
+
+    /** @return when the follow was created */
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
 }

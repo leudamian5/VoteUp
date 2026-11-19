@@ -1,7 +1,14 @@
 package voteup.model.exception;
 
 /**
- * Skeleton (Process step 2). API details added in step 3.
+ * The requested post was not found or is deleted.
  */
 public class PostNotFoundException extends VoteUpException {
+
+    /**
+     * @param message detail message
+     */
+    public PostNotFoundException(String message) {
+        super(message);
+    }
 }

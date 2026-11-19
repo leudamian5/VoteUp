@@ -1,7 +1,14 @@
 package voteup.model.exception;
 
 /**
- * Skeleton (Process step 2). API details added in step 3.
+ * The author of the parent post has blocked this user.
  */
 public class ReplyBlockedException extends VoteUpException {
+
+    /**
+     * @param message detail message
+     */
+    public ReplyBlockedException(String message) {
+        super(message);
+    }
 }

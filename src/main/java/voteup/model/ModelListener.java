@@ -1,7 +1,14 @@
 package voteup.model;
 
 /**
- * Skeleton (Process step 2). API details added in step 3.
+ * Observer interested in {@link ModelEvent} notifications from a {@link Model}.
  */
 public interface ModelListener {
+
+    /**
+     * Called when a model this listener is registered with has changed.
+     *
+     * @param event the change event
+     */
+    void modelChanged(ModelEvent event);
 }

@@ -1,10 +1,13 @@
 package voteup.model;
 
 /**
- * Skeleton (Process step 2).
+ * Reset window for a leaderboard.
  */
 public enum LeaderboardPeriod {
+    /** Resets daily. */
     DAILY,
+    /** Resets weekly. */
     WEEKLY,
+    /** Resets monthly. */
     MONTHLY
 }

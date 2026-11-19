@@ -1,7 +1,14 @@
 package voteup.model.exception;
 
 /**
- * Skeleton (Process step 2). API details added in step 3.
+ * The actor may not modify or delete this post.
  */
 public class PostForbiddenException extends VoteUpException {
+
+    /**
+     * @param message detail message
+     */
+    public PostForbiddenException(String message) {
+        super(message);
+    }
 }

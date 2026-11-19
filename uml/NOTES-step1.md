@@ -103,4 +103,10 @@ Used to shape attributes/operations; not fully implemented yet:
 
 **Process §2:** ✅ Done — skeleton under `VoteUp/src/main/java` (compiles).
 
-**Process §3:** Add attribute/operation declarations + Javadoc + `throws` stubs (still no real implementations).
+**Process §3–5:** ✅ Done — API declarations + Javadoc + compiling stubs; `gradle javadocAll` produces docs under `build/docs/javadoc` (all visibility).
+
+**Process §6:** Reverse-engineer UML from current code (optional sync of `uml/*.mmd`).
+
+**Process §7:** Review API vs Javadoc/UML; iterate if needed.
+
+**Process §8:** First JUnit + real implementations (model methods).
