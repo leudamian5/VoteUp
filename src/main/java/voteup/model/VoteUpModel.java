@@ -282,6 +282,33 @@ public class VoteUpModel extends AbstractModel {
     }
 
     /**
+     * Requires a known, non-deleted target user.
+     *
+     * @param target candidate user
+     * @return stored user
+     * @throws UserNotFoundException if missing or deleted
+     */
+    private User requireActiveTarget(User target) throws UserNotFoundException {
+        if (target == null || target.getUserId() == null || !users.containsKey(target.getUserId())) {
+            throw new UserNotFoundException("User not found");
+        }
+        User stored = users.get(target.getUserId());
+        if (stored.isDeleted()) {
+            throw new UserNotFoundException("User not found");
+        }
+        return stored;
+    }
+
+    /**
+     * @param follower follower
+     * @param followee followee
+     * @return {@code true} if follower follows followee
+     */
+    boolean isFollowing(User follower, User followee) {
+        return findFollow(follower, followee) != null;
+    }
+
+    /**
      * @param blocker user who may have blocked
      * @param blocked potentially blocked user
      * @return {@code true} if a block exists
@@ -300,13 +327,70 @@ public class VoteUpModel extends AbstractModel {
     }
 
     /**
-     * Seeds a block relationship (tests / until social slice owns {@code blockUser}).
+     * @param a one user
+     * @param b other user
+     * @return {@code true} if either user has blocked the other
+     */
+    boolean hasBlockBetween(User a, User b) {
+        return isBlocked(a, b) || isBlocked(b, a);
+    }
+
+    /**
+     * Visibility helper for feeds/profiles: no block in either direction.
+     *
+     * @param viewer viewer
+     * @param author content author / profile owner
+     * @return {@code true} if viewer may see author's content
+     */
+    boolean canViewContent(User viewer, User author) {
+        if (viewer == null || author == null) {
+            return false;
+        }
+        return !hasBlockBetween(viewer, author);
+    }
+
+    /**
+     * Seeds a block relationship without unfollow side effects (tests).
      *
      * @param blocker blocker
      * @param blocked blocked user
      */
     void putBlock(User blocker, User blocked) {
         blocks.add(new Block(blocker, blocked));
+    }
+
+    private Follow findFollow(User follower, User followee) {
+        if (follower == null || followee == null) {
+            return null;
+        }
+        for (Follow follow : follows) {
+            if (follow.getFollower().getUserId().equals(follower.getUserId())
+                    && follow.getFollowee().getUserId().equals(followee.getUserId())) {
+                return follow;
+            }
+        }
+        return null;
+    }
+
+    private void removeFollowsBothWays(User a, User b) {
+        follows.removeIf(f ->
+                (f.getFollower().getUserId().equals(a.getUserId())
+                        && f.getFollowee().getUserId().equals(b.getUserId()))
+                        || (f.getFollower().getUserId().equals(b.getUserId())
+                        && f.getFollowee().getUserId().equals(a.getUserId())));
+    }
+
+    private Block findBlock(User blocker, User blocked) {
+        if (blocker == null || blocked == null) {
+            return null;
+        }
+        for (Block block : blocks) {
+            if (block.getBlocker().getUserId().equals(blocker.getUserId())
+                    && block.getBlocked().getUserId().equals(blocked.getUserId())) {
+                return block;
+            }
+        }
+        return null;
     }
 
     /**
@@ -408,7 +492,19 @@ public class VoteUpModel extends AbstractModel {
      */
     public void followUser(User actor, User target)
             throws AuthenticationException, SocialException, UserNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(actor);
+        User followee = requireActiveTarget(target);
+        if (actor.getUserId().equals(followee.getUserId())) {
+            throw new SocialException("Cannot follow yourself");
+        }
+        if (hasBlockBetween(actor, followee)) {
+            throw new SocialException("Cannot follow while a block exists");
+        }
+        if (isFollowing(actor, followee)) {
+            throw new SocialException("Already following this user");
+        }
+        follows.add(new Follow(actor, followee));
+        notifyChanged(new ModelEvent(this, 0, "USER_FOLLOWED", followee));
     }
 
     /**
@@ -420,7 +516,14 @@ public class VoteUpModel extends AbstractModel {
      */
     public void unfollowUser(User actor, User target)
             throws AuthenticationException, SocialException, UserNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(actor);
+        User followee = requireActiveTarget(target);
+        Follow existing = findFollow(actor, followee);
+        if (existing == null) {
+            throw new SocialException("Not following this user");
+        }
+        follows.remove(existing);
+        notifyChanged(new ModelEvent(this, 0, "USER_UNFOLLOWED", followee));
     }
 
     /**
@@ -434,7 +537,17 @@ public class VoteUpModel extends AbstractModel {
      */
     public void blockUser(User actor, User target)
             throws AuthenticationException, SocialException, UserNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(actor);
+        User blocked = requireActiveTarget(target);
+        if (actor.getUserId().equals(blocked.getUserId())) {
+            throw new SocialException("Cannot block yourself");
+        }
+        if (isBlocked(actor, blocked)) {
+            throw new SocialException("User is already blocked");
+        }
+        removeFollowsBothWays(actor, blocked);
+        blocks.add(new Block(actor, blocked));
+        notifyChanged(new ModelEvent(this, 0, "USER_BLOCKED", blocked));
     }
 
     /**
@@ -446,7 +559,14 @@ public class VoteUpModel extends AbstractModel {
      */
     public void unblockUser(User actor, User target)
             throws AuthenticationException, SocialException, UserNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(actor);
+        User blocked = requireActiveTarget(target);
+        Block existing = findBlock(actor, blocked);
+        if (existing == null) {
+            throw new SocialException("User is not blocked");
+        }
+        blocks.remove(existing);
+        notifyChanged(new ModelEvent(this, 0, "USER_UNBLOCKED", blocked));
     }
 
     /**
