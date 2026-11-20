@@ -1251,12 +1251,11 @@ public class VoteUpModel extends AbstractModel {
             }
         }
 
+        // Eligible users with no period engagements count as implicit score 0
+        // (so zeros rank above negatives).
         List<User> candidates = new ArrayList<>();
         for (User user : users.values()) {
             if (user.isDeleted() || user.isPermanentlyBanned()) {
-                continue;
-            }
-            if (!finalScores.containsKey(user.getUserId())) {
                 continue;
             }
             candidates.add(user);

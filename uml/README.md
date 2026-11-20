@@ -88,6 +88,6 @@ Then open `build/docs/javadoc/index.html` in a browser.
 - Design lock: one engagement row per (user, post); LIKE↔DISLIKE switch sets `createdAt` to now.
 - Design lock: block removes follows in **both** directions; unblock does not restore them.
 - Design lock: feeds are newest-first with tie-break `created_at DESC`, `author.created_at ASC`, `post_id ASC`; page size max `FEED_PAGE_LIMIT` (25).
-- Design lock: leaderboard standings computed on demand (likes−dislikes since `lastResetTime`); top 10; equal scores use `firstReachedAt` then account age; exclude deleted/perm-banned; achievements awarded per reset event.
+- Design lock: leaderboard standings computed on demand (likes−dislikes since `lastResetTime`); eligible users with no engagements count as **implicit 0** (zeros rank above negatives); top 10; equal scores use `firstReachedAt` then account age; exclude deleted/perm-banned; achievements awarded per reset event.
 - Design lock: temp ban uses `banExpiresAt` (not login lockout); perm ban ≠ delete (username kept, posts remain); bans revoke sessions.
 - Design lock: account delete → `deleted_<userId>`, sessions revoked, posts remain; username becomes reusable; blocks hide profiles.

@@ -57,7 +57,8 @@ class LeaderboardTest {
         model.applyEngagement(alice, bobPost, EngagementType.LIKE);
 
         List<User> standings = model.getStandings(LeaderboardPeriod.DAILY);
-        assertEquals(List.of(alice, bob), standings);
+        // alice=2, bob=1, carol=0 (implicit)
+        assertEquals(List.of(alice, bob, carol), standings);
     }
 
     @Test
@@ -72,7 +73,9 @@ class LeaderboardTest {
         alice.setDeleted(true);
 
         List<User> standings = model.getStandings(LeaderboardPeriod.DAILY);
-        assertTrue(standings.isEmpty());
+        assertEquals(List.of(carol), standings);
+        assertFalse(standings.contains(alice));
+        assertFalse(standings.contains(bob));
     }
 
     @Test
@@ -87,7 +90,24 @@ class LeaderboardTest {
 
         // Both score 1; bob reached first → bob ranks higher despite younger account
         List<User> standings = model.getStandings(LeaderboardPeriod.DAILY);
-        assertEquals(List.of(bob, alice), standings);
+        assertEquals(bob, standings.get(0));
+        assertEquals(alice, standings.get(1));
+        assertEquals(carol, standings.get(2));
+    }
+
+    @Test
+    void implicitZeroRanksAboveNegative() throws Exception {
+        Post bobPost = model.createPost(bob, "b", null, null);
+        advanceMinutes(1);
+        model.applyEngagement(alice, bobPost, EngagementType.DISLIKE);
+
+        List<User> standings = model.getStandings(LeaderboardPeriod.DAILY);
+        assertEquals(-1, model.getPeriodScore(bob, LeaderboardPeriod.DAILY));
+        assertEquals(0, model.getPeriodScore(alice, LeaderboardPeriod.DAILY));
+        assertEquals(0, model.getPeriodScore(carol, LeaderboardPeriod.DAILY));
+        assertTrue(standings.indexOf(alice) < standings.indexOf(bob));
+        assertTrue(standings.indexOf(carol) < standings.indexOf(bob));
+        assertEquals(bob, standings.get(standings.size() - 1));
     }
 
     @Test
@@ -132,11 +152,16 @@ class LeaderboardTest {
         assertEquals(now.get(), a.getDateEarned());
         assertTrue(a.getTitle().contains("DAILY"));
 
-        assertTrue(model.getStandings(LeaderboardPeriod.DAILY).isEmpty());
+        // After reset everyone is back to implicit 0 but still eligible
+        List<User> afterReset = model.getStandings(LeaderboardPeriod.DAILY);
+        assertEquals(3, afterReset.size());
+        assertEquals(0, model.getPeriodScore(alice, LeaderboardPeriod.DAILY));
 
         advanceMinutes(1);
         model.applyEngagement(carol, alicePost, EngagementType.LIKE);
-        assertEquals(List.of(alice), model.getStandings(LeaderboardPeriod.DAILY));
+        List<User> standings = model.getStandings(LeaderboardPeriod.DAILY);
+        assertEquals(alice, standings.get(0));
+        assertEquals(1, model.getPeriodScore(alice, LeaderboardPeriod.DAILY));
 
         model.resetLeaderboard(LeaderboardPeriod.DAILY);
         assertEquals(2, alice.getAchievements().size());
@@ -150,7 +175,9 @@ class LeaderboardTest {
 
         model.resetLeaderboard(LeaderboardPeriod.DAILY);
         assertEquals(1, alice.getAchievements().size());
-        assertEquals(List.of(alice), model.getStandings(LeaderboardPeriod.WEEKLY));
+        List<User> weekly = model.getStandings(LeaderboardPeriod.WEEKLY);
+        assertEquals(alice, weekly.get(0));
+        assertEquals(1, model.getPeriodScore(alice, LeaderboardPeriod.WEEKLY));
     }
 
     @Test
@@ -162,8 +189,9 @@ class LeaderboardTest {
         model.applyEngagement(carol, bobPost, EngagementType.DISLIKE);
 
         List<User> standings = model.getStandings(LeaderboardPeriod.DAILY);
+        // alice=1, carol=0, bob=-1
         assertEquals(alice, standings.get(0));
-        assertTrue(standings.contains(bob));
-        assertEquals(bob, standings.get(standings.size() - 1));
+        assertEquals(carol, standings.get(1));
+        assertEquals(bob, standings.get(2));
     }
 }
