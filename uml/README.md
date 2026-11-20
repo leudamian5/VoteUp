@@ -50,6 +50,7 @@ Model tests under `src/test/java/voteup/model/`:
 | Social | `SocialTest.java` | follow / unfollow / block / unblock / visibility helpers |
 | Feeds | `FeedsTest.java` | main / following / tag / post+replies / search / paging / tie-break |
 | Leaderboard | `LeaderboardTest.java` | standings / reset / achievements / firstReachedAt ties |
+| Moderation | `ModerationTest.java` | temp/perm ban / promote / demote / session revoke / mod delete |
 
 ### Run the application
 
@@ -79,3 +80,4 @@ Then open `build/docs/javadoc/index.html` in a browser.
 - Design lock: block removes follows in **both** directions; unblock does not restore them.
 - Design lock: feeds are newest-first with tie-break `created_at DESC`, `author.created_at ASC`, `post_id ASC`; page size max `FEED_PAGE_LIMIT` (25).
 - Design lock: leaderboard standings computed on demand (likes−dislikes since `lastResetTime`); top 10; equal scores use `firstReachedAt` then account age; exclude deleted/perm-banned; achievements awarded per reset event.
+- Design lock: temp ban uses `banExpiresAt` (not login lockout); perm ban ≠ delete (username kept, posts remain); bans revoke sessions.
