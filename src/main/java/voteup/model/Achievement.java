@@ -43,6 +43,13 @@ public class Achievement {
         return dateEarned;
     }
 
+    /**
+     * @param dateEarned when earned (model clock / tests)
+     */
+    void setDateEarned(LocalDateTime dateEarned) {
+        this.dateEarned = dateEarned;
+    }
+
     /** @return period */
     public LeaderboardPeriod getLeaderboardPeriod() {
         return leaderboardPeriod;
