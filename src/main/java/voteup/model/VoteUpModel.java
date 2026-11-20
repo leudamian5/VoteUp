@@ -310,6 +310,56 @@ public class VoteUpModel extends AbstractModel {
     }
 
     /**
+     * Finds the engagement for a user on a post, if any.
+     *
+     * @param user user
+     * @param post post
+     * @return engagement or {@code null}
+     */
+    Engagement findEngagement(User user, Post post) {
+        if (user == null || post == null) {
+            return null;
+        }
+        for (Engagement engagement : engagements) {
+            if (engagement.getUser().getUserId().equals(user.getUserId())
+                    && engagement.getPost().getPostId().equals(post.getPostId())) {
+                return engagement;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * @param post post
+     * @return number of engagement rows for the post
+     */
+    int countEngagementsFor(Post post) {
+        if (post == null) {
+            return 0;
+        }
+        int count = 0;
+        for (Engagement engagement : engagements) {
+            if (engagement.getPost().getPostId().equals(post.getPostId())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static void applyCountDelta(Post post, EngagementType from, EngagementType to) {
+        if (from == EngagementType.LIKE) {
+            post.adjustEngagementCounts(-1, 0);
+        } else if (from == EngagementType.DISLIKE) {
+            post.adjustEngagementCounts(0, -1);
+        }
+        if (to == EngagementType.LIKE) {
+            post.adjustEngagementCounts(1, 0);
+        } else if (to == EngagementType.DISLIKE) {
+            post.adjustEngagementCounts(0, 1);
+        }
+    }
+
+    /**
      * Soft-deletes the account and renames username to {@code deleted_<id>}.
      *
      * @param user account to delete (must be the authenticated user)
@@ -546,7 +596,31 @@ public class VoteUpModel extends AbstractModel {
      */
     public void applyEngagement(User user, Post post, EngagementType type)
             throws AuthenticationException, EngagementException, PostNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(user);
+        Post stored = requireActivePost(post);
+        if (type == null) {
+            throw new EngagementException("Engagement type is required");
+        }
+
+        Engagement existing = findEngagement(user, stored);
+        if (existing == null) {
+            Engagement created = new Engagement(
+                    UUID.randomUUID().toString(), user, stored, type);
+            created.setCreatedAt(now());
+            engagements.add(created);
+            applyCountDelta(stored, null, type);
+            notifyChanged(new ModelEvent(this, 0, "ENGAGEMENT_APPLIED", created));
+            return;
+        }
+
+        if (existing.getType() == type) {
+            return;
+        }
+
+        applyCountDelta(stored, existing.getType(), type);
+        existing.setType(type);
+        existing.setCreatedAt(now());
+        notifyChanged(new ModelEvent(this, 0, "ENGAGEMENT_SWITCHED", existing));
     }
 
     /**
@@ -560,7 +634,18 @@ public class VoteUpModel extends AbstractModel {
      */
     public void removeEngagement(User user, Post post)
             throws AuthenticationException, EngagementException, PostNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(user);
+        if (post == null || post.getPostId() == null || !posts.containsKey(post.getPostId())) {
+            throw new PostNotFoundException("Post not found");
+        }
+        Post stored = posts.get(post.getPostId());
+        Engagement existing = findEngagement(user, stored);
+        if (existing == null) {
+            throw new EngagementException("No engagement to remove");
+        }
+        engagements.remove(existing);
+        applyCountDelta(stored, existing.getType(), null);
+        notifyChanged(new ModelEvent(this, 0, "ENGAGEMENT_REMOVED", stored));
     }
 
     /**

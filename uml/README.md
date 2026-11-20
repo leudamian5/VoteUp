@@ -33,14 +33,20 @@ cd VoteUp
 gradle compileJava
 ```
 
-### Run unit tests (including Auth)
+### Run unit tests
 
 ```bash
 cd VoteUp
 gradle test
 ```
 
-Auth tests live in `src/test/java/voteup/model/AuthTest.java` (register / login / lockout / logout).
+Model tests under `src/test/java/voteup/model/`:
+
+| Slice | File | Covers |
+|-------|------|--------|
+| Auth | `AuthTest.java` | register / login / lockout / logout |
+| Posts | `PostsTest.java` | create / reply / soft-delete / tags / empty content |
+| Engagement | `EngagementTest.java` | like / dislike / switch (`createdAt` reset) / remove / score |
 
 ### Run the application
 
@@ -49,9 +55,9 @@ cd VoteUp
 gradle run
 ```
 
-**Current behavior:** `voteup.Main` constructs `VoteUpModel`, `VoteUpController`, and `LoginView`, but the Swing UI is still a stub (no usable windows yet). Process §8 is implementing the **model** first; GUI comes in a later increment.
+**Current behavior:** `voteup.Main` constructs `VoteUpModel`, `VoteUpController`, and `LoginView`, but the Swing UI is still a stub (no usable windows yet). Process §8–9 is implementing the **model** first; GUI comes in a later increment.
 
-Until the view is implemented, use **`gradle test`** to exercise Auth behavior.
+Until the view is implemented, use **`gradle test`** to exercise model behavior.
 
 ### Generate Javadoc
 
@@ -66,3 +72,4 @@ Then open `build/docs/javadoc/index.html` in a browser.
 
 - Persistence is still in-memory (H2 file mode comes later).
 - Password hashing is SHA-256 for the local demo (`voteup.util.PasswordHasher`), not production bcrypt.
+- Design lock: one engagement row per (user, post); LIKE↔DISLIKE switch sets `createdAt` to now.

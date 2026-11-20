@@ -19,6 +19,8 @@ public class Post {
     private List<Tag> tags;
     private boolean isDeleted;
     private User deletedBy;
+    private int likeCount;
+    private int dislikeCount;
 
     /**
      * Creates a top-level post.
@@ -50,6 +52,8 @@ public class Post {
         this.createdAt = LocalDateTime.now();
         this.tags = new ArrayList<>();
         this.isDeleted = false;
+        this.likeCount = 0;
+        this.dislikeCount = 0;
     }
 
     /** @return post id */
@@ -153,7 +157,28 @@ public class Post {
      * @return net score (may be negative)
      */
     public int score() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return likeCount - dislikeCount;
+    }
+
+    /** @return like count */
+    int getLikeCount() {
+        return likeCount;
+    }
+
+    /** @return dislike count */
+    int getDislikeCount() {
+        return dislikeCount;
+    }
+
+    /**
+     * Adjusts engagement counters when a like/dislike is added, removed, or switched.
+     *
+     * @param deltaLikes    change in likes
+     * @param deltaDislikes change in dislikes
+     */
+    void adjustEngagementCounts(int deltaLikes, int deltaDislikes) {
+        likeCount += deltaLikes;
+        dislikeCount += deltaDislikes;
     }
 
     /**
