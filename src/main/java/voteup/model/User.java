@@ -186,6 +186,15 @@ public class User {
         return createdAt;
     }
 
+    /**
+     * Sets account creation time (model clock / feed tie-break tests).
+     *
+     * @param createdAt creation timestamp
+     */
+    void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
     /** @return achievements list */
     public List<Achievement> getAchievements() {
         return achievements;

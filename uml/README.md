@@ -48,6 +48,7 @@ Model tests under `src/test/java/voteup/model/`:
 | Posts | `PostsTest.java` | create / reply / soft-delete / tags / empty content |
 | Engagement | `EngagementTest.java` | like / dislike / switch (`createdAt` reset) / remove / score |
 | Social | `SocialTest.java` | follow / unfollow / block / unblock / visibility helpers |
+| Feeds | `FeedsTest.java` | main / following / tag / post+replies / search / paging / tie-break |
 
 ### Run the application
 
@@ -75,3 +76,4 @@ Then open `build/docs/javadoc/index.html` in a browser.
 - Password hashing is SHA-256 for the local demo (`voteup.util.PasswordHasher`), not production bcrypt.
 - Design lock: one engagement row per (user, post); LIKE↔DISLIKE switch sets `createdAt` to now.
 - Design lock: block removes follows in **both** directions; unblock does not restore them.
+- Design lock: feeds are newest-first with tie-break `created_at DESC`, `author.created_at ASC`, `post_id ASC`; page size max `FEED_PAGE_LIMIT` (25).

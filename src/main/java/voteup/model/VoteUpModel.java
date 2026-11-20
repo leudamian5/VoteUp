@@ -2,6 +2,7 @@ package voteup.model;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +47,9 @@ public class VoteUpModel extends AbstractModel {
 
     /** Default session lifetime in hours. */
     public static final int SESSION_HOURS = 24;
+
+    /** Maximum feed / search page size. */
+    public static final int FEED_PAGE_LIMIT = 25;
 
     private final Map<String, User> users;
     private final Map<String, Post> posts;
@@ -779,7 +783,15 @@ public class VoteUpModel extends AbstractModel {
      */
     public List<Post> getMainFeed(User viewer, int offset, int limit)
             throws ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        validatePaging(offset, limit);
+        List<Post> matches = new ArrayList<>();
+        for (Post post : posts.values()) {
+            if (isVisibleTopLevel(viewer, post)) {
+                matches.add(post);
+            }
+        }
+        matches.sort(feedOrder());
+        return page(matches, offset, limit);
     }
 
     /**
@@ -794,7 +806,19 @@ public class VoteUpModel extends AbstractModel {
      */
     public List<Post> getFollowingFeed(User viewer, int offset, int limit)
             throws AuthenticationException, ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(viewer);
+        validatePaging(offset, limit);
+        List<Post> matches = new ArrayList<>();
+        for (Post post : posts.values()) {
+            if (!isVisibleTopLevel(viewer, post)) {
+                continue;
+            }
+            if (isFollowing(viewer, post.getAuthor())) {
+                matches.add(post);
+            }
+        }
+        matches.sort(feedOrder());
+        return page(matches, offset, limit);
     }
 
     /**
@@ -809,7 +833,22 @@ public class VoteUpModel extends AbstractModel {
      */
     public List<Post> getTagFeed(User viewer, Tag tag, int offset, int limit)
             throws ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        validatePaging(offset, limit);
+        if (tag == null || tag.getName() == null || tag.getName().isBlank()) {
+            throw new ValidationException("Tag is required");
+        }
+        String wanted = Tag.normalize(tag.getName()).getName();
+        List<Post> matches = new ArrayList<>();
+        for (Post post : posts.values()) {
+            if (!isVisibleTopLevel(viewer, post)) {
+                continue;
+            }
+            if (postHasTag(post, wanted)) {
+                matches.add(post);
+            }
+        }
+        matches.sort(feedOrder());
+        return page(matches, offset, limit);
     }
 
     /**
@@ -822,7 +861,28 @@ public class VoteUpModel extends AbstractModel {
      */
     public List<Post> getPostWithReplies(User viewer, Post post)
             throws PostNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Post root = requireActivePost(post);
+        if (viewer != null && !canViewContent(viewer, root.getAuthor())) {
+            throw new PostNotFoundException("Post not found");
+        }
+        List<Post> replies = new ArrayList<>();
+        for (Post candidate : posts.values()) {
+            if (candidate.isDeleted() || !candidate.isReply()) {
+                continue;
+            }
+            if (!candidate.getParentPost().getPostId().equals(root.getPostId())) {
+                continue;
+            }
+            if (viewer != null && !canViewContent(viewer, candidate.getAuthor())) {
+                continue;
+            }
+            replies.add(candidate);
+        }
+        replies.sort(feedOrder());
+        List<Post> result = new ArrayList<>(1 + replies.size());
+        result.add(root);
+        result.addAll(replies);
+        return result;
     }
 
     /**
@@ -836,7 +896,25 @@ public class VoteUpModel extends AbstractModel {
      */
     public List<User> searchUsers(User viewer, String query)
             throws AuthenticationException, ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(viewer);
+        if (query == null || query.isBlank()) {
+            throw new ValidationException("Search query must not be blank");
+        }
+        String needle = query.trim().toLowerCase();
+        List<User> matches = new ArrayList<>();
+        for (User user : users.values()) {
+            if (user.isDeleted()) {
+                continue;
+            }
+            if (!canViewContent(viewer, user)) {
+                continue;
+            }
+            if (user.getUsername().toLowerCase().contains(needle)) {
+                matches.add(user);
+            }
+        }
+        matches.sort(Comparator.comparing(User::getUsername, String.CASE_INSENSITIVE_ORDER));
+        return pageUsers(matches, 0, FEED_PAGE_LIMIT);
     }
 
     /**
@@ -850,7 +928,60 @@ public class VoteUpModel extends AbstractModel {
      */
     public List<Post> searchByTag(User viewer, String tagName)
             throws AuthenticationException, ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(viewer);
+        if (tagName == null || tagName.isBlank()) {
+            throw new ValidationException("Tag query must not be blank");
+        }
+        return getTagFeed(viewer, Tag.normalize(tagName), 0, FEED_PAGE_LIMIT);
+    }
+
+    private void validatePaging(int offset, int limit) throws ValidationException {
+        if (offset < 0) {
+            throw new ValidationException("Offset must be non-negative");
+        }
+        if (limit < 1 || limit > FEED_PAGE_LIMIT) {
+            throw new ValidationException(
+                    "Limit must be between 1 and " + FEED_PAGE_LIMIT);
+        }
+    }
+
+    private static Comparator<Post> feedOrder() {
+        return Comparator
+                .comparing(Post::getCreatedAt, Comparator.reverseOrder())
+                .thenComparing(p -> p.getAuthor().getCreatedAt())
+                .thenComparing(Post::getPostId);
+    }
+
+    private boolean isVisibleTopLevel(User viewer, Post post) {
+        if (post.isDeleted() || post.isReply()) {
+            return false;
+        }
+        return viewer == null || canViewContent(viewer, post.getAuthor());
+    }
+
+    private static boolean postHasTag(Post post, String normalizedName) {
+        for (Tag tag : post.getTags()) {
+            if (tag.getName().equalsIgnoreCase(normalizedName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<Post> page(List<Post> sorted, int offset, int limit) {
+        if (offset >= sorted.size()) {
+            return List.of();
+        }
+        int end = Math.min(offset + limit, sorted.size());
+        return new ArrayList<>(sorted.subList(offset, end));
+    }
+
+    private static List<User> pageUsers(List<User> sorted, int offset, int limit) {
+        if (offset >= sorted.size()) {
+            return List.of();
+        }
+        int end = Math.min(offset + limit, sorted.size());
+        return new ArrayList<>(sorted.subList(offset, end));
     }
 
     /**
