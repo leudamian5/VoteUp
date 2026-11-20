@@ -51,6 +51,7 @@ Model tests under `src/test/java/voteup/model/`:
 | Feeds | `FeedsTest.java` | main / following / tag / post+replies / search / paging / tie-break |
 | Leaderboard | `LeaderboardTest.java` | standings / reset / achievements / firstReachedAt ties |
 | Moderation | `ModerationTest.java` | temp/perm ban / promote / demote / session revoke / mod delete |
+| Account | `AccountTest.java` | deleteAccount / updateProfile / getProfile / username reuse |
 
 ### Run the application
 
@@ -59,7 +60,7 @@ cd VoteUp
 gradle run
 ```
 
-**Current behavior:** `voteup.Main` constructs `VoteUpModel`, `VoteUpController`, and `LoginView`, but the Swing UI is still a stub (no usable windows yet). Process §8–9 is implementing the **model** first; GUI comes in a later increment.
+**Current behavior:** `voteup.Main` constructs `VoteUpModel`, `VoteUpController`, and `LoginView`, but the Swing UI is still a stub (no usable windows yet). Process §8–9 model package slices are complete after Account; next is controller polish + Swing views (§10) and acceptance screenshots (§11).
 
 Until the view is implemented, use **`gradle test`** to exercise model behavior.
 
@@ -81,3 +82,4 @@ Then open `build/docs/javadoc/index.html` in a browser.
 - Design lock: feeds are newest-first with tie-break `created_at DESC`, `author.created_at ASC`, `post_id ASC`; page size max `FEED_PAGE_LIMIT` (25).
 - Design lock: leaderboard standings computed on demand (likes−dislikes since `lastResetTime`); top 10; equal scores use `firstReachedAt` then account age; exclude deleted/perm-banned; achievements awarded per reset event.
 - Design lock: temp ban uses `banExpiresAt` (not login lockout); perm ban ≠ delete (username kept, posts remain); bans revoke sessions.
+- Design lock: account delete → `deleted_<userId>`, sessions revoked, posts remain; username becomes reusable; blocks hide profiles.

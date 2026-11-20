@@ -501,7 +501,15 @@ public class VoteUpModel extends AbstractModel {
      */
     public void deleteAccount(User user)
             throws AuthenticationException, AuthorizationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(user);
+        User stored = users.get(user.getUserId());
+        if (stored.isDeleted()) {
+            throw new AuthenticationException("User is not authenticated");
+        }
+        stored.setDeleted(true);
+        stored.setUsername("deleted_" + stored.getUserId());
+        revokeSessionsFor(stored);
+        notifyChanged(new ModelEvent(this, 0, "USER_DELETED", stored));
     }
 
     /**
@@ -515,7 +523,11 @@ public class VoteUpModel extends AbstractModel {
      */
     public void updateProfile(User actor, String bio, String profilePictureUrl)
             throws AuthenticationException, AuthorizationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(actor);
+        User stored = users.get(actor.getUserId());
+        stored.setBio(bio);
+        stored.setProfilePictureUrl(profilePictureUrl);
+        notifyChanged(new ModelEvent(this, 0, "PROFILE_UPDATED", stored));
     }
 
     /**
@@ -529,7 +541,16 @@ public class VoteUpModel extends AbstractModel {
      */
     public User getProfile(User viewer, User target)
             throws ProfileUnavailableException, UserNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        if (target == null || target.getUserId() == null || !users.containsKey(target.getUserId())) {
+            throw new UserNotFoundException("User not found");
+        }
+        User stored = users.get(target.getUserId());
+        if (viewer != null
+                && !viewer.getUserId().equals(stored.getUserId())
+                && hasBlockBetween(viewer, stored)) {
+            throw new ProfileUnavailableException("Profile unavailable due to a block");
+        }
+        return stored;
     }
 
     /**
