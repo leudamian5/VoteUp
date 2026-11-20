@@ -2,9 +2,13 @@ package voteup.view;
 
 import java.awt.BorderLayout;
 
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
@@ -21,6 +25,10 @@ import voteup.model.User;
  */
 public class ProfileView extends JFrameView {
 
+    private static final int AVATAR_MAX = 220;
+
+    private final JPanel profileBody = new JPanel();
+    private final JLabel avatarHost = new JLabel();
     private final JTextArea details = new JTextArea();
     private User target;
 
@@ -52,7 +60,28 @@ public class ProfileView extends JFrameView {
                 showProfile(target);
             }
         }), BorderLayout.NORTH);
-        center.add(ViewSupport.postListScroll(details), BorderLayout.CENTER);
+
+        profileBody.setLayout(new BoxLayout(profileBody, BoxLayout.Y_AXIS));
+        profileBody.setBackground(ViewSupport.PANEL);
+        profileBody.setBorder(new EmptyBorder(12, 12, 12, 12));
+
+        avatarHost.setAlignmentX(LEFT_ALIGNMENT);
+        details.setEditable(false);
+        details.setFont(ViewSupport.BODY);
+        details.setLineWrap(true);
+        details.setWrapStyleWord(true);
+        details.setBackground(ViewSupport.PANEL);
+        details.setForeground(ViewSupport.TEXT);
+        details.setBorder(new EmptyBorder(8, 0, 0, 0));
+        details.setAlignmentX(LEFT_ALIGNMENT);
+
+        profileBody.add(avatarHost);
+        profileBody.add(Box.createVerticalStrut(8));
+        profileBody.add(details);
+
+        JScrollPane scroll = new JScrollPane(profileBody);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        center.add(scroll, BorderLayout.CENTER);
 
         JPanel actions = new JPanel();
         actions.setOpaque(false);
@@ -229,6 +258,28 @@ public class ProfileView extends JFrameView {
         try {
             User profile = ctrl().getProfile(me, target);
             this.target = profile;
+
+            String pic = profile.getProfilePictureUrl();
+            if (pic == null || pic.isBlank()) {
+                avatarHost.setIcon(null);
+                avatarHost.setText("(no profile picture)");
+                avatarHost.setForeground(ViewSupport.MUTED);
+                avatarHost.setFont(ViewSupport.BODY);
+            } else {
+                JLabel loaded = ImageSupport.imageLabel(pic, AVATAR_MAX, AVATAR_MAX);
+                if (loaded != null && loaded.getIcon() != null) {
+                    avatarHost.setText(null);
+                    avatarHost.setIcon(loaded.getIcon());
+                    avatarHost.setToolTipText(pic);
+                } else {
+                    avatarHost.setIcon(null);
+                    avatarHost.setText(loaded == null ? "(no profile picture)" : loaded.getText());
+                    avatarHost.setForeground(ViewSupport.MUTED);
+                    avatarHost.setFont(ViewSupport.BODY);
+                    avatarHost.setToolTipText(pic);
+                }
+            }
+
             StringBuilder sb = new StringBuilder();
             sb.append('@').append(profile.getUsername()).append('\n');
             sb.append("Role: ").append(profile.getRole()).append('\n');
@@ -236,9 +287,6 @@ public class ProfileView extends JFrameView {
             sb.append("Permanently banned: ").append(profile.isPermanentlyBanned()).append('\n');
             sb.append("Temp ban active: ").append(profile.isTempBanned()).append('\n');
             sb.append("Bio: ").append(profile.getBio() == null ? "(none)" : profile.getBio()).append('\n');
-            sb.append("Picture: ")
-                    .append(profile.getProfilePictureUrl() == null ? "(none)" : profile.getProfilePictureUrl())
-                    .append('\n');
             if (me != null && !me.getUserId().equals(profile.getUserId())) {
                 sb.append("You follow: ").append(ctrl().isFollowing(me, profile)).append('\n');
                 sb.append("You blocked: ").append(ctrl().isBlocked(me, profile)).append('\n');
@@ -252,6 +300,8 @@ public class ProfileView extends JFrameView {
             details.setText(sb.toString());
             details.setCaretPosition(0);
             setTitle("VoteUp — @" + profile.getUsername());
+            profileBody.revalidate();
+            profileBody.repaint();
         } catch (Exception ex) {
             showError(ex.getMessage());
             ctrl().showMainFeed();

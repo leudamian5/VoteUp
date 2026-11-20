@@ -29,6 +29,18 @@ final class ImageSupport {
      * @return label with scaled icon or muted failure text
      */
     static JLabel imageLabel(String imageRef) {
+        return imageLabel(imageRef, MAX_WIDTH, MAX_HEIGHT);
+    }
+
+    /**
+     * Builds a label showing the image scaled to the given max size.
+     *
+     * @param imageRef path / URL / classpath ref
+     * @param maxW     max width
+     * @param maxH     max height
+     * @return label with scaled icon or muted failure text
+     */
+    static JLabel imageLabel(String imageRef, int maxW, int maxH) {
         if (imageRef == null || imageRef.isBlank()) {
             return null;
         }
@@ -38,7 +50,7 @@ final class ImageSupport {
             if (raw == null) {
                 return failureLabel(ref, "not found");
             }
-            Image scaled = scaleToFit(raw, MAX_WIDTH, MAX_HEIGHT);
+            Image scaled = scaleToFit(raw, maxW, maxH);
             JLabel label = new JLabel(new ImageIcon(scaled));
             label.setToolTipText(ref);
             label.setAlignmentX(JLabel.LEFT_ALIGNMENT);
