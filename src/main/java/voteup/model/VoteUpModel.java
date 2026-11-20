@@ -353,7 +353,7 @@ public class VoteUpModel extends AbstractModel {
      * @param followee followee
      * @return {@code true} if follower follows followee
      */
-    boolean isFollowing(User follower, User followee) {
+    public boolean isFollowing(User follower, User followee) {
         return findFollow(follower, followee) != null;
     }
 
@@ -362,7 +362,7 @@ public class VoteUpModel extends AbstractModel {
      * @param blocked potentially blocked user
      * @return {@code true} if a block exists
      */
-    boolean isBlocked(User blocker, User blocked) {
+    public boolean isBlocked(User blocker, User blocked) {
         if (blocker == null || blocked == null) {
             return false;
         }
@@ -1160,6 +1160,21 @@ public class VoteUpModel extends AbstractModel {
     }
 
     /**
+     * Period net score (likes − dislikes since last reset) for a user.
+     *
+     * @param user   author
+     * @param period leaderboard period
+     * @return score, or {@code 0} if none / invalid args
+     */
+    public int getPeriodScore(User user, LeaderboardPeriod period) {
+        if (user == null || period == null || !leaderboards.containsKey(period)) {
+            return 0;
+        }
+        return computePeriodScores(leaderboards.get(period))
+                .getOrDefault(user.getUserId(), 0);
+    }
+
+    /**
      * Resets a leaderboard period and awards achievements.
      *
      * @param period period to reset
@@ -1185,10 +1200,9 @@ public class VoteUpModel extends AbstractModel {
         notifyChanged(new ModelEvent(this, 0, "LEADERBOARD_RESET", period));
     }
 
-    private List<User> computeTopTen(Leaderboard board) {
+    private Map<String, Integer> computePeriodScores(Leaderboard board) {
         LocalDateTime resetAt = board.getLastResetTime();
         Map<String, Integer> finalScores = new HashMap<>();
-        List<Engagement> periodEngagements = new ArrayList<>();
         for (Engagement engagement : engagements) {
             if (engagement.getCreatedAt() == null || resetAt == null) {
                 continue;
@@ -1197,10 +1211,25 @@ public class VoteUpModel extends AbstractModel {
             if (!engagement.getCreatedAt().isAfter(resetAt)) {
                 continue;
             }
-            periodEngagements.add(engagement);
             String authorId = engagement.getPost().getAuthor().getUserId();
             int delta = engagement.getType() == EngagementType.LIKE ? 1 : -1;
             finalScores.merge(authorId, delta, Integer::sum);
+        }
+        return finalScores;
+    }
+
+    private List<User> computeTopTen(Leaderboard board) {
+        Map<String, Integer> finalScores = computePeriodScores(board);
+        LocalDateTime resetAt = board.getLastResetTime();
+        List<Engagement> periodEngagements = new ArrayList<>();
+        for (Engagement engagement : engagements) {
+            if (engagement.getCreatedAt() == null || resetAt == null) {
+                continue;
+            }
+            if (!engagement.getCreatedAt().isAfter(resetAt)) {
+                continue;
+            }
+            periodEngagements.add(engagement);
         }
 
         periodEngagements.sort(Comparator
@@ -1222,12 +1251,11 @@ public class VoteUpModel extends AbstractModel {
             }
         }
 
+        // Eligible users with no period engagements count as implicit score 0
+        // (so zeros rank above negatives).
         List<User> candidates = new ArrayList<>();
         for (User user : users.values()) {
             if (user.isDeleted() || user.isPermanentlyBanned()) {
-                continue;
-            }
-            if (!finalScores.containsKey(user.getUserId())) {
                 continue;
             }
             candidates.add(user);
