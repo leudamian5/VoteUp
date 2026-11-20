@@ -1,9 +1,13 @@
 package voteup.model;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.function.Supplier;
 
 import voteup.model.exception.AuthenticationException;
 import voteup.model.exception.AuthorizationException;
@@ -20,13 +24,28 @@ import voteup.model.exception.SocialException;
 import voteup.model.exception.UserNotFoundException;
 import voteup.model.exception.UsernameTakenException;
 import voteup.model.exception.ValidationException;
+import voteup.util.PasswordHasher;
 
 /**
  * Application model facade for VoteUp. Holds domain state and exposes the
  * business API so the model package can be unit-tested without controller/view.
- * Method bodies are stubs until Process step 8+.
  */
 public class VoteUpModel extends AbstractModel {
+
+    /** Failed logins required before a lockout is applied. */
+    public static final int FAILED_ATTEMPTS_BEFORE_LOCK = 5;
+
+    /** First lockout duration in minutes (tier 0). */
+    public static final int LOCKOUT_MINUTES_TIER0 = 15;
+
+    /** Escalated lockout duration in minutes (tier 1). */
+    public static final int LOCKOUT_MINUTES_TIER1 = 30;
+
+    /** Hours after a lock ends before progression resets to tier 0. */
+    public static final int LOCKOUT_PROGRESSION_RESET_HOURS = 24;
+
+    /** Default session lifetime in hours. */
+    public static final int SESSION_HOURS = 24;
 
     private final Map<String, User> users;
     private final Map<String, Post> posts;
@@ -35,6 +54,9 @@ public class VoteUpModel extends AbstractModel {
     private final List<Block> blocks;
     private final Map<String, SessionToken> sessions;
     private final Map<LeaderboardPeriod, Leaderboard> leaderboards;
+
+    /** Clock for auth/lockout timing; overridable in tests. */
+    private Supplier<LocalDateTime> clock = LocalDateTime::now;
 
     /**
      * Creates an empty in-memory model with three leaderboard periods.
@@ -56,17 +78,44 @@ public class VoteUpModel extends AbstractModel {
     }
 
     /**
+     * Overrides the clock used for login lockout and session timing (tests).
+     *
+     * @param clock time supplier; must not be {@code null}
+     */
+    void setClock(Supplier<LocalDateTime> clock) {
+        this.clock = Objects.requireNonNull(clock, "clock");
+    }
+
+    private LocalDateTime now() {
+        return clock.get();
+    }
+
+    /**
      * Registers a new user account.
      *
      * @param username desired username
-     * @param password plaintext password (hashed by implementation later)
+     * @param password plaintext password (stored hashed)
      * @return created user
      * @throws UsernameTakenException if an active user already has the name
      * @throws ValidationException    if input is invalid
      */
     public User register(String username, String password)
             throws UsernameTakenException, ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        if (username == null || username.isBlank()) {
+            throw new ValidationException("Username must not be blank");
+        }
+        if (password == null || password.isBlank()) {
+            throw new ValidationException("Password must not be blank");
+        }
+        if (findActiveUserByUsername(username) != null) {
+            throw new UsernameTakenException("Username already taken: " + username);
+        }
+
+        String userId = UUID.randomUUID().toString();
+        User user = new User(userId, username.trim(), PasswordHasher.hash(password));
+        users.put(userId, user);
+        notifyChanged(new ModelEvent(this, 0, "USER_REGISTERED", user));
+        return user;
     }
 
     /**
@@ -81,7 +130,41 @@ public class VoteUpModel extends AbstractModel {
      */
     public SessionToken login(String username, String password)
             throws AuthenticationException, LockoutException, BannedException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        LocalDateTime now = now();
+        User user = findActiveUserByUsername(username);
+
+        if (user == null) {
+            throw new AuthenticationException("Invalid credentials");
+        }
+
+        maybeResetLockoutProgression(user, now);
+
+        if (user.isPermanentlyBanned()) {
+            throw new BannedException("Account is permanently banned", true, null);
+        }
+        if (user.isTempBanned(now)) {
+            throw new BannedException("Account is temporarily banned", false, user.getBanExpiresAt());
+        }
+        if (user.isLockedOut(now)) {
+            throw new LockoutException("Account is locked out", user.getLockoutExpiresAt());
+        }
+
+        if (!PasswordHasher.matches(password, user.getPasswordHash())) {
+            recordFailedLogin(user, now);
+            throw new AuthenticationException("Invalid credentials");
+        }
+
+        user.setFailedLoginAttempts(0);
+        user.setLockoutExpiresAt(null);
+        user.setLastFailedLogin(null);
+
+        SessionToken token = new SessionToken(
+                UUID.randomUUID().toString(),
+                user,
+                now.plusHours(SESSION_HOURS));
+        sessions.put(token.getTokenId(), token);
+        notifyChanged(new ModelEvent(this, 0, "USER_LOGIN", user));
+        return token;
     }
 
     /**
@@ -91,7 +174,59 @@ public class VoteUpModel extends AbstractModel {
      * @throws AuthenticationException if the user/session is invalid
      */
     public void logout(User user) throws AuthenticationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        if (user == null || !users.containsKey(user.getUserId())) {
+            throw new AuthenticationException("User is not authenticated");
+        }
+        for (SessionToken token : sessions.values()) {
+            if (token.getUser().getUserId().equals(user.getUserId()) && !token.isRevoked()) {
+                token.revoke();
+            }
+        }
+        notifyChanged(new ModelEvent(this, 0, "USER_LOGOUT", user));
+    }
+
+    /**
+     * Finds an active (non-deleted) user by username. Package-visible for tests.
+     *
+     * @param username username to find
+     * @return user or {@code null}
+     */
+    User findActiveUserByUsername(String username) {
+        if (username == null) {
+            return null;
+        }
+        String trimmed = username.trim();
+        for (User user : users.values()) {
+            if (!user.isDeleted() && user.getUsername().equals(trimmed)) {
+                return user;
+            }
+        }
+        return null;
+    }
+
+    private void maybeResetLockoutProgression(User user, LocalDateTime now) {
+        LocalDateTime lastLockEndedAt = user.getLastLockEndedAt();
+        if (lastLockEndedAt != null
+                && !now.isBefore(lastLockEndedAt.plusHours(LOCKOUT_PROGRESSION_RESET_HOURS))) {
+            user.setLockoutTier(0);
+        }
+    }
+
+    private void recordFailedLogin(User user, LocalDateTime now) {
+        user.setFailedLoginAttempts(user.getFailedLoginAttempts() + 1);
+        user.setLastFailedLogin(now);
+        if (user.getFailedLoginAttempts() < FAILED_ATTEMPTS_BEFORE_LOCK) {
+            return;
+        }
+
+        int minutes = user.getLockoutTier() == 0 ? LOCKOUT_MINUTES_TIER0 : LOCKOUT_MINUTES_TIER1;
+        LocalDateTime unlockAt = now.plusMinutes(minutes);
+        user.setLockoutExpiresAt(unlockAt);
+        user.setLastLockEndedAt(unlockAt);
+        if (user.getLockoutTier() == 0) {
+            user.setLockoutTier(1);
+        }
+        user.setFailedLoginAttempts(0);
     }
 
     /**

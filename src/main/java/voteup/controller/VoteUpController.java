@@ -71,7 +71,8 @@ public class VoteUpController extends AbstractController {
      */
     public boolean register(String username, String password)
             throws UsernameTakenException, ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.register(username, password);
+        return true;
     }
 
     /**
@@ -84,7 +85,7 @@ public class VoteUpController extends AbstractController {
      */
     public SessionToken login(String username, String password)
             throws AuthenticationException, LockoutException, BannedException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return voteUpModel.login(username, password);
     }
 
     /**
@@ -92,7 +93,7 @@ public class VoteUpController extends AbstractController {
      * @throws AuthenticationException if invalid
      */
     public void logout(User user) throws AuthenticationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.logout(user);
     }
 
     /**

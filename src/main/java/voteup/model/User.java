@@ -235,13 +235,29 @@ public class User {
      * @return {@code true} if a temporary ban is currently active
      */
     public boolean isTempBanned() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return isTempBanned(LocalDateTime.now());
+    }
+
+    /**
+     * @param now current time
+     * @return {@code true} if a temporary ban is active at {@code now}
+     */
+    public boolean isTempBanned(LocalDateTime now) {
+        return banExpiresAt != null && now.isBefore(banExpiresAt);
     }
 
     /**
      * @return {@code true} if a login lockout is currently active
      */
     public boolean isLockedOut() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return isLockedOut(LocalDateTime.now());
+    }
+
+    /**
+     * @param now current time
+     * @return {@code true} if login lockout is active at {@code now}
+     */
+    public boolean isLockedOut(LocalDateTime now) {
+        return lockoutExpiresAt != null && now.isBefore(lockoutExpiresAt);
     }
 }

@@ -57,13 +57,21 @@ public class SessionToken {
      * @return {@code true} if not revoked and not expired
      */
     public boolean isValid() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return isValid(LocalDateTime.now());
+    }
+
+    /**
+     * @param now current time
+     * @return {@code true} if not revoked and {@code now} is before expiry
+     */
+    public boolean isValid(LocalDateTime now) {
+        return !revoked && now.isBefore(expiresAt);
     }
 
     /**
      * Marks this token as revoked (logout, ban, or account delete).
      */
     public void revoke() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        this.revoked = true;
     }
 }
