@@ -47,6 +47,7 @@ Model tests under `src/test/java/voteup/model/`:
 | Auth | `AuthTest.java` | register / login / lockout / logout |
 | Posts | `PostsTest.java` | create / reply / soft-delete / tags / empty content |
 | Engagement | `EngagementTest.java` | like / dislike / switch (`createdAt` reset) / remove / score |
+| Social | `SocialTest.java` | follow / unfollow / block / unblock / visibility helpers |
 
 ### Run the application
 
@@ -73,3 +74,4 @@ Then open `build/docs/javadoc/index.html` in a browser.
 - Persistence is still in-memory (H2 file mode comes later).
 - Password hashing is SHA-256 for the local demo (`voteup.util.PasswordHasher`), not production bcrypt.
 - Design lock: one engagement row per (user, post); LIKE↔DISLIKE switch sets `createdAt` to now.
+- Design lock: block removes follows in **both** directions; unblock does not restore them.
