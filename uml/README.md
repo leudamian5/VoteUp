@@ -49,6 +49,7 @@ Model tests under `src/test/java/voteup/model/`:
 | Engagement | `EngagementTest.java` | like / dislike / switch (`createdAt` reset) / remove / score |
 | Social | `SocialTest.java` | follow / unfollow / block / unblock / visibility helpers |
 | Feeds | `FeedsTest.java` | main / following / tag / post+replies / search / paging / tie-break |
+| Leaderboard | `LeaderboardTest.java` | standings / reset / achievements / firstReachedAt ties |
 
 ### Run the application
 
@@ -77,3 +78,4 @@ Then open `build/docs/javadoc/index.html` in a browser.
 - Design lock: one engagement row per (user, post); LIKE↔DISLIKE switch sets `createdAt` to now.
 - Design lock: block removes follows in **both** directions; unblock does not restore them.
 - Design lock: feeds are newest-first with tie-break `created_at DESC`, `author.created_at ASC`, `post_id ASC`; page size max `FEED_PAGE_LIMIT` (25).
+- Design lock: leaderboard standings computed on demand (likes−dislikes since `lastResetTime`); top 10; equal scores use `firstReachedAt` then account age; exclude deleted/perm-banned; achievements awarded per reset event.

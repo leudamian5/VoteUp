@@ -1040,10 +1040,25 @@ public class VoteUpModel extends AbstractModel {
 
     /**
      * @param period leaderboard period
+     * @return leaderboard row
+     */
+    Leaderboard getLeaderboard(LeaderboardPeriod period) {
+        return leaderboards.get(period);
+    }
+
+    /**
+     * @param period leaderboard period
      * @return current top standings
      */
     public List<User> getStandings(LeaderboardPeriod period) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        if (period == null || !leaderboards.containsKey(period)) {
+            return List.of();
+        }
+        Leaderboard board = leaderboards.get(period);
+        List<User> top = computeTopTen(board);
+        board.getTopTenUsers().clear();
+        board.getTopTenUsers().addAll(top);
+        return new ArrayList<>(top);
     }
 
     /**
@@ -1052,6 +1067,97 @@ public class VoteUpModel extends AbstractModel {
      * @param period period to reset
      */
     public void resetLeaderboard(LeaderboardPeriod period) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        if (period == null || !leaderboards.containsKey(period)) {
+            return;
+        }
+        Leaderboard board = leaderboards.get(period);
+        List<User> top = getStandings(period);
+        LocalDateTime earnedAt = now();
+        for (User user : top) {
+            Achievement achievement = new Achievement(
+                    UUID.randomUUID().toString(),
+                    user,
+                    "Top 10 " + period.name(),
+                    period);
+            achievement.setDateEarned(earnedAt);
+            user.getAchievements().add(achievement);
+        }
+        board.reset();
+        board.setLastResetTime(earnedAt);
+        notifyChanged(new ModelEvent(this, 0, "LEADERBOARD_RESET", period));
+    }
+
+    private List<User> computeTopTen(Leaderboard board) {
+        LocalDateTime resetAt = board.getLastResetTime();
+        Map<String, Integer> finalScores = new HashMap<>();
+        List<Engagement> periodEngagements = new ArrayList<>();
+        for (Engagement engagement : engagements) {
+            if (engagement.getCreatedAt() == null || resetAt == null) {
+                continue;
+            }
+            // Strictly after last reset so a reset at time T excludes period-T engagements.
+            if (!engagement.getCreatedAt().isAfter(resetAt)) {
+                continue;
+            }
+            periodEngagements.add(engagement);
+            String authorId = engagement.getPost().getAuthor().getUserId();
+            int delta = engagement.getType() == EngagementType.LIKE ? 1 : -1;
+            finalScores.merge(authorId, delta, Integer::sum);
+        }
+
+        periodEngagements.sort(Comparator
+                .comparing(Engagement::getCreatedAt)
+                .thenComparing(Engagement::getEngagementId));
+
+        Map<String, Integer> running = new HashMap<>();
+        Map<String, LocalDateTime> firstReachedAt = new HashMap<>();
+        for (Engagement engagement : periodEngagements) {
+            String authorId = engagement.getPost().getAuthor().getUserId();
+            int delta = engagement.getType() == EngagementType.LIKE ? 1 : -1;
+            int next = running.getOrDefault(authorId, 0) + delta;
+            running.put(authorId, next);
+            Integer finalScore = finalScores.get(authorId);
+            if (finalScore != null
+                    && next == finalScore
+                    && !firstReachedAt.containsKey(authorId)) {
+                firstReachedAt.put(authorId, engagement.getCreatedAt());
+            }
+        }
+
+        List<User> candidates = new ArrayList<>();
+        for (User user : users.values()) {
+            if (user.isDeleted() || user.isPermanentlyBanned()) {
+                continue;
+            }
+            if (!finalScores.containsKey(user.getUserId())) {
+                continue;
+            }
+            candidates.add(user);
+        }
+
+        candidates.sort((u1, u2) -> {
+            int s1 = finalScores.getOrDefault(u1.getUserId(), 0);
+            int s2 = finalScores.getOrDefault(u2.getUserId(), 0);
+            if (s1 != s2) {
+                return Integer.compare(s2, s1);
+            }
+            User winner = board.resolveTie(
+                    u1,
+                    u2,
+                    firstReachedAt.get(u1.getUserId()),
+                    firstReachedAt.get(u2.getUserId()));
+            if (winner == u1) {
+                return -1;
+            }
+            if (winner == u2) {
+                return 1;
+            }
+            return 0;
+        });
+
+        if (candidates.size() <= Leaderboard.TOP_TEN_SIZE) {
+            return candidates;
+        }
+        return new ArrayList<>(candidates.subList(0, Leaderboard.TOP_TEN_SIZE));
     }
 }
