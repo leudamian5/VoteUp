@@ -230,6 +230,86 @@ public class VoteUpModel extends AbstractModel {
     }
 
     /**
+     * Requires a known, non-deleted user (model-level "authenticated").
+     *
+     * @param user candidate user
+     * @throws AuthenticationException if missing or deleted
+     */
+    private void requireAuthenticated(User user) throws AuthenticationException {
+        if (user == null || !users.containsKey(user.getUserId()) || user.isDeleted()) {
+            throw new AuthenticationException("User is not authenticated");
+        }
+    }
+
+    /**
+     * Rejects permanently or temporarily banned users.
+     *
+     * @param user candidate user
+     * @throws BannedException if banned at {@link #now()}
+     */
+    private void requireNotBanned(User user) throws BannedException {
+        LocalDateTime now = now();
+        if (user.isPermanentlyBanned()) {
+            throw new BannedException("Account is permanently banned", true, null);
+        }
+        if (user.isTempBanned(now)) {
+            throw new BannedException("Account is temporarily banned", false, user.getBanExpiresAt());
+        }
+    }
+
+    private static boolean hasContent(String text, String imageUrl) {
+        boolean hasText = text != null && !text.isBlank();
+        boolean hasImage = imageUrl != null && !imageUrl.isBlank();
+        return hasText || hasImage;
+    }
+
+    /**
+     * Looks up a non-deleted post by id.
+     *
+     * @param post candidate post
+     * @return stored post
+     * @throws PostNotFoundException if null, missing, or soft-deleted
+     */
+    private Post requireActivePost(Post post) throws PostNotFoundException {
+        if (post == null || post.getPostId() == null) {
+            throw new PostNotFoundException("Post not found");
+        }
+        Post stored = posts.get(post.getPostId());
+        if (stored == null || stored.isDeleted()) {
+            throw new PostNotFoundException("Post not found");
+        }
+        return stored;
+    }
+
+    /**
+     * @param blocker user who may have blocked
+     * @param blocked potentially blocked user
+     * @return {@code true} if a block exists
+     */
+    boolean isBlocked(User blocker, User blocked) {
+        if (blocker == null || blocked == null) {
+            return false;
+        }
+        for (Block block : blocks) {
+            if (block.getBlocker().getUserId().equals(blocker.getUserId())
+                    && block.getBlocked().getUserId().equals(blocked.getUserId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Seeds a block relationship (tests / until social slice owns {@code blockUser}).
+     *
+     * @param blocker blocker
+     * @param blocked blocked user
+     */
+    void putBlock(User blocker, User blocked) {
+        blocks.add(new Block(blocker, blocked));
+    }
+
+    /**
      * Soft-deletes the account and renames username to {@code deleted_<id>}.
      *
      * @param user account to delete (must be the authenticated user)
@@ -333,7 +413,22 @@ public class VoteUpModel extends AbstractModel {
      */
     public Post createPost(User author, String text, String imageUrl, List<Tag> tags)
             throws AuthenticationException, PostEmptyException, BannedException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(author);
+        requireNotBanned(author);
+        if (!hasContent(text, imageUrl)) {
+            throw new PostEmptyException("Post must have text and/or image");
+        }
+
+        Post post = new Post(UUID.randomUUID().toString(), author, text, imageUrl);
+        post.setCreatedAt(now());
+        if (tags != null) {
+            for (Tag tag : tags) {
+                post.addTag(tag);
+            }
+        }
+        posts.put(post.getPostId(), post);
+        notifyChanged(new ModelEvent(this, 0, "POST_CREATED", post));
+        return post;
     }
 
     /**
@@ -353,7 +448,21 @@ public class VoteUpModel extends AbstractModel {
     public Post createReply(User author, Post parent, String text, String imageUrl)
             throws AuthenticationException, PostEmptyException, ReplyBlockedException,
             PostNotFoundException, BannedException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(author);
+        requireNotBanned(author);
+        Post storedParent = requireActivePost(parent);
+        if (!hasContent(text, imageUrl)) {
+            throw new PostEmptyException("Reply must have text and/or image");
+        }
+        if (isBlocked(storedParent.getAuthor(), author)) {
+            throw new ReplyBlockedException("Blocked by parent author");
+        }
+
+        Post reply = new Post(UUID.randomUUID().toString(), author, text, imageUrl, storedParent);
+        reply.setCreatedAt(now());
+        posts.put(reply.getPostId(), reply);
+        notifyChanged(new ModelEvent(this, 0, "REPLY_CREATED", reply));
+        return reply;
     }
 
     /**
@@ -367,7 +476,16 @@ public class VoteUpModel extends AbstractModel {
      */
     public void deletePost(User actor, Post post)
             throws AuthenticationException, PostForbiddenException, PostNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(actor);
+        Post stored = requireActivePost(post);
+        boolean isAuthor = stored.getAuthor().getUserId().equals(actor.getUserId());
+        boolean isStaff = actor.getRole() == Role.MOD || actor.getRole() == Role.ADMIN;
+        if (!isAuthor && !isStaff) {
+            throw new PostForbiddenException("Not allowed to delete this post");
+        }
+        stored.setDeleted(true);
+        stored.setDeletedBy(actor);
+        notifyChanged(new ModelEvent(this, 0, "POST_DELETED", stored));
     }
 
     /**
@@ -380,7 +498,17 @@ public class VoteUpModel extends AbstractModel {
      */
     public void addTags(User actor, Post post, List<Tag> tags)
             throws AuthenticationException, PostForbiddenException, PostNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(actor);
+        Post stored = requireActivePost(post);
+        if (!stored.getAuthor().getUserId().equals(actor.getUserId())) {
+            throw new PostForbiddenException("Only the author may add tags");
+        }
+        if (tags != null) {
+            for (Tag tag : tags) {
+                stored.addTag(tag);
+            }
+        }
+        notifyChanged(new ModelEvent(this, 0, "POST_TAGS_ADDED", stored));
     }
 
     /**
@@ -393,7 +521,17 @@ public class VoteUpModel extends AbstractModel {
      */
     public void removeTags(User actor, Post post, List<Tag> tags)
             throws AuthenticationException, PostForbiddenException, PostNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAuthenticated(actor);
+        Post stored = requireActivePost(post);
+        if (!stored.getAuthor().getUserId().equals(actor.getUserId())) {
+            throw new PostForbiddenException("Only the author may remove tags");
+        }
+        if (tags != null) {
+            for (Tag tag : tags) {
+                stored.removeTag(tag);
+            }
+        }
+        notifyChanged(new ModelEvent(this, 0, "POST_TAGS_REMOVED", stored));
     }
 
     /**

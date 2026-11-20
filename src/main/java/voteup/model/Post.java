@@ -77,6 +77,15 @@ public class Post {
         return createdAt;
     }
 
+    /**
+     * Sets creation time (model clock / tests).
+     *
+     * @param createdAt creation timestamp
+     */
+    void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
     /** @return parent post or {@code null} */
     public Post getParentPost() {
         return parentPost;
@@ -108,21 +117,34 @@ public class Post {
     }
 
     /**
-     * Adds a tag to this post.
+     * Adds a tag to this post if not already present (by normalized name).
      *
      * @param tag tag to add
      */
     public void addTag(Tag tag) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        if (tag == null || tag.getName() == null || tag.getName().isBlank()) {
+            return;
+        }
+        Tag normalized = Tag.normalize(tag.getName());
+        for (Tag existing : tags) {
+            if (existing.getName().equalsIgnoreCase(normalized.getName())) {
+                return;
+            }
+        }
+        tags.add(normalized);
     }
 
     /**
-     * Removes a tag from this post.
+     * Removes a tag from this post by normalized name.
      *
      * @param tag tag to remove
      */
     public void removeTag(Tag tag) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        if (tag == null || tag.getName() == null) {
+            return;
+        }
+        String name = Tag.normalize(tag.getName()).getName();
+        tags.removeIf(existing -> existing.getName().equalsIgnoreCase(name));
     }
 
     /**
