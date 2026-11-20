@@ -2,9 +2,12 @@ package voteup.controller;
 
 import java.util.List;
 
+import javax.swing.SwingUtilities;
+
 import voteup.model.EngagementType;
 import voteup.model.LeaderboardPeriod;
 import voteup.model.Post;
+import voteup.model.Role;
 import voteup.model.SessionToken;
 import voteup.model.Tag;
 import voteup.model.User;
@@ -24,17 +27,29 @@ import voteup.model.exception.SocialException;
 import voteup.model.exception.UserNotFoundException;
 import voteup.model.exception.UsernameTakenException;
 import voteup.model.exception.ValidationException;
+import voteup.view.FollowingFeedView;
+import voteup.view.JFrameView;
+import voteup.view.LoginView;
+import voteup.view.MainFeedView;
+import voteup.view.PostPageView;
+import voteup.view.ProfileView;
+import voteup.view.TagFeedView;
 
 /**
- * Application controller. Delegates business operations to {@link VoteUpModel}.
- * Method bodies are stubs until later process increments.
+ * Application controller. Holds session state, navigates Swing views, and
+ * delegates business operations to {@link VoteUpModel}.
  */
 public class VoteUpController extends AbstractController {
 
-    /**
-     * Typed reference to the VoteUp model (same instance as {@link #getModel()}).
-     */
     private VoteUpModel voteUpModel;
+    private SessionToken currentSession;
+
+    private LoginView loginView;
+    private MainFeedView mainFeedView;
+    private FollowingFeedView followingFeedView;
+    private TagFeedView tagFeedView;
+    private PostPageView postPageView;
+    private ProfileView profileView;
 
     /**
      * Creates a controller with a new {@link VoteUpModel}.
@@ -58,6 +73,103 @@ public class VoteUpController extends AbstractController {
      */
     public VoteUpModel getVoteUpModel() {
         return voteUpModel;
+    }
+
+    /**
+     * @return current session user, or {@code null}
+     */
+    public User getCurrentUser() {
+        return currentSession == null ? null : currentSession.getUser();
+    }
+
+    /**
+     * @return current session token, or {@code null}
+     */
+    public SessionToken getCurrentSession() {
+        return currentSession;
+    }
+
+    /**
+     * Builds views (if needed) and shows the login screen on the EDT.
+     */
+    public void start() {
+        SwingUtilities.invokeLater(() -> {
+            ensureViews();
+            showLogin();
+        });
+    }
+
+    private void ensureViews() {
+        if (loginView == null) {
+            loginView = new LoginView(voteUpModel, this);
+            mainFeedView = new MainFeedView(voteUpModel, this);
+            followingFeedView = new FollowingFeedView(voteUpModel, this);
+            tagFeedView = new TagFeedView(voteUpModel, this);
+            postPageView = new PostPageView(voteUpModel, this);
+            profileView = new ProfileView(voteUpModel, this);
+            setView(loginView);
+        }
+    }
+
+    private void showOnly(JFrameView target) {
+        ensureViews();
+        JFrameView[] all = {
+                loginView, mainFeedView, followingFeedView, tagFeedView, postPageView, profileView
+        };
+        for (JFrameView view : all) {
+            if (view != null && view != target) {
+                view.setVisible(false);
+            }
+        }
+        setView(target);
+        target.showWindow();
+    }
+
+    /** Shows the login / register screen. */
+    public void showLogin() {
+        showOnly(loginView);
+    }
+
+    /** Shows the main feed for the logged-in user. */
+    public void showMainFeed() {
+        showOnly(mainFeedView);
+        mainFeedView.refreshFeed();
+    }
+
+    /** Shows the following feed. */
+    public void showFollowingFeed() {
+        showOnly(followingFeedView);
+        followingFeedView.refreshFeed();
+    }
+
+    /**
+     * Shows the tag feed for a tag name.
+     *
+     * @param tagName raw tag (leading {@code #} optional)
+     */
+    public void showTagFeed(String tagName) {
+        showOnly(tagFeedView);
+        tagFeedView.showTag(Tag.normalize(tagName));
+    }
+
+    /**
+     * Shows a post thread.
+     *
+     * @param post root post
+     */
+    public void showPostPage(Post post) {
+        showOnly(postPageView);
+        postPageView.showPost(post);
+    }
+
+    /**
+     * Shows a user profile.
+     *
+     * @param target profile owner
+     */
+    public void showProfile(User target) {
+        showOnly(profileView);
+        profileView.showProfile(target);
     }
 
     /**
@@ -85,7 +197,23 @@ public class VoteUpController extends AbstractController {
      */
     public SessionToken login(String username, String password)
             throws AuthenticationException, LockoutException, BannedException {
-        return voteUpModel.login(username, password);
+        currentSession = voteUpModel.login(username, password);
+        showMainFeed();
+        return currentSession;
+    }
+
+    /**
+     * Logs out the current user and returns to login.
+     *
+     * @throws AuthenticationException if invalid
+     */
+    public void logout() throws AuthenticationException {
+        User user = getCurrentUser();
+        if (user != null) {
+            voteUpModel.logout(user);
+        }
+        currentSession = null;
+        showLogin();
     }
 
     /**
@@ -94,6 +222,10 @@ public class VoteUpController extends AbstractController {
      */
     public void logout(User user) throws AuthenticationException {
         voteUpModel.logout(user);
+        if (getCurrentUser() != null && getCurrentUser().getUserId().equals(user.getUserId())) {
+            currentSession = null;
+            showLogin();
+        }
     }
 
     /**
@@ -103,7 +235,11 @@ public class VoteUpController extends AbstractController {
      */
     public void deleteAccount(User user)
             throws AuthenticationException, AuthorizationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.deleteAccount(user);
+        if (getCurrentUser() != null && getCurrentUser().getUserId().equals(user.getUserId())) {
+            currentSession = null;
+            showLogin();
+        }
     }
 
     /**
@@ -115,7 +251,7 @@ public class VoteUpController extends AbstractController {
      */
     public void updateProfile(User actor, String bio, String profilePictureUrl)
             throws AuthenticationException, AuthorizationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.updateProfile(actor, bio, profilePictureUrl);
     }
 
     /**
@@ -127,7 +263,7 @@ public class VoteUpController extends AbstractController {
      */
     public User getProfile(User viewer, User target)
             throws ProfileUnavailableException, UserNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return voteUpModel.getProfile(viewer, target);
     }
 
     /**
@@ -139,7 +275,7 @@ public class VoteUpController extends AbstractController {
      */
     public void follow(User actor, User target)
             throws AuthenticationException, SocialException, UserNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.followUser(actor, target);
     }
 
     /**
@@ -151,7 +287,7 @@ public class VoteUpController extends AbstractController {
      */
     public void unfollow(User actor, User target)
             throws AuthenticationException, SocialException, UserNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.unfollowUser(actor, target);
     }
 
     /**
@@ -163,7 +299,7 @@ public class VoteUpController extends AbstractController {
      */
     public void block(User actor, User target)
             throws AuthenticationException, SocialException, UserNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.blockUser(actor, target);
     }
 
     /**
@@ -175,7 +311,25 @@ public class VoteUpController extends AbstractController {
      */
     public void unblock(User actor, User target)
             throws AuthenticationException, SocialException, UserNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.unblockUser(actor, target);
+    }
+
+    /**
+     * @param follower follower
+     * @param followee followee
+     * @return whether following
+     */
+    public boolean isFollowing(User follower, User followee) {
+        return voteUpModel.isFollowing(follower, followee);
+    }
+
+    /**
+     * @param blocker blocker
+     * @param blocked blocked
+     * @return whether blocked
+     */
+    public boolean isBlocked(User blocker, User blocked) {
+        return voteUpModel.isBlocked(blocker, blocked);
     }
 
     /**
@@ -190,7 +344,7 @@ public class VoteUpController extends AbstractController {
      */
     public Post createPost(User author, String text, String img, List<Tag> tags)
             throws AuthenticationException, PostEmptyException, BannedException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return voteUpModel.createPost(author, text, img, tags);
     }
 
     /**
@@ -208,7 +362,7 @@ public class VoteUpController extends AbstractController {
     public Post createReply(User author, Post parent, String text, String img)
             throws AuthenticationException, PostEmptyException, ReplyBlockedException,
             PostNotFoundException, BannedException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return voteUpModel.createReply(author, parent, text, img);
     }
 
     /**
@@ -220,7 +374,7 @@ public class VoteUpController extends AbstractController {
      */
     public void deletePost(User actor, Post post)
             throws AuthenticationException, PostForbiddenException, PostNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.deletePost(actor, post);
     }
 
     /**
@@ -233,7 +387,7 @@ public class VoteUpController extends AbstractController {
      */
     public void addTags(User actor, Post post, List<Tag> tags)
             throws AuthenticationException, PostForbiddenException, PostNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.addTags(actor, post, tags);
     }
 
     /**
@@ -246,7 +400,7 @@ public class VoteUpController extends AbstractController {
      */
     public void removeTags(User actor, Post post, List<Tag> tags)
             throws AuthenticationException, PostForbiddenException, PostNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.removeTags(actor, post, tags);
     }
 
     /**
@@ -259,7 +413,7 @@ public class VoteUpController extends AbstractController {
      */
     public void applyEngagement(User user, Post post, EngagementType type)
             throws AuthenticationException, EngagementException, PostNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.applyEngagement(user, post, type);
     }
 
     /**
@@ -271,7 +425,7 @@ public class VoteUpController extends AbstractController {
      */
     public void removeEngagement(User user, Post post)
             throws AuthenticationException, EngagementException, PostNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.removeEngagement(user, post);
     }
 
     /**
@@ -283,7 +437,7 @@ public class VoteUpController extends AbstractController {
      */
     public List<Post> getMainFeed(User viewer, int offset, int limit)
             throws ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return voteUpModel.getMainFeed(viewer, offset, limit);
     }
 
     /**
@@ -296,7 +450,7 @@ public class VoteUpController extends AbstractController {
      */
     public List<Post> getFollowingFeed(User viewer, int offset, int limit)
             throws AuthenticationException, ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return voteUpModel.getFollowingFeed(viewer, offset, limit);
     }
 
     /**
@@ -309,7 +463,7 @@ public class VoteUpController extends AbstractController {
      */
     public List<Post> getTagFeed(User viewer, Tag tag, int offset, int limit)
             throws ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return voteUpModel.getTagFeed(viewer, tag, offset, limit);
     }
 
     /**
@@ -320,7 +474,7 @@ public class VoteUpController extends AbstractController {
      */
     public List<Post> getPostWithReplies(User viewer, Post post)
             throws PostNotFoundException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return voteUpModel.getPostWithReplies(viewer, post);
     }
 
     /**
@@ -332,7 +486,7 @@ public class VoteUpController extends AbstractController {
      */
     public List<User> searchUsers(User viewer, String query)
             throws AuthenticationException, ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return voteUpModel.searchUsers(viewer, query);
     }
 
     /**
@@ -344,7 +498,7 @@ public class VoteUpController extends AbstractController {
      */
     public List<Post> searchByTag(User viewer, String tagName)
             throws AuthenticationException, ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return voteUpModel.searchByTag(viewer, tagName);
     }
 
     /**
@@ -357,7 +511,7 @@ public class VoteUpController extends AbstractController {
      */
     public void issueTempBan(User mod, User target, int durationHours)
             throws AuthorizationException, ModerationException, ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.issueTempBan(mod, target, durationHours);
     }
 
     /**
@@ -368,7 +522,7 @@ public class VoteUpController extends AbstractController {
      */
     public void issuePermBan(User mod, User target)
             throws AuthorizationException, ModerationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.issuePermBan(mod, target);
     }
 
     /**
@@ -379,7 +533,7 @@ public class VoteUpController extends AbstractController {
      */
     public void promoteToMod(User admin, User target)
             throws AuthorizationException, ModerationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.promoteToMod(admin, target);
     }
 
     /**
@@ -390,7 +544,7 @@ public class VoteUpController extends AbstractController {
      */
     public void demoteFromMod(User admin, User target)
             throws AuthorizationException, ModerationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.demoteFromMod(admin, target);
     }
 
     /**
@@ -398,13 +552,21 @@ public class VoteUpController extends AbstractController {
      * @return standings
      */
     public List<User> getStandings(LeaderboardPeriod period) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return voteUpModel.getStandings(period);
     }
 
     /**
      * @param period period to reset
      */
     public void resetLeaderboard(LeaderboardPeriod period) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        voteUpModel.resetLeaderboard(period);
+    }
+
+    /**
+     * @param user user
+     * @return {@code true} if staff
+     */
+    public boolean isStaff(User user) {
+        return user != null && (user.getRole() == Role.MOD || user.getRole() == Role.ADMIN);
     }
 }

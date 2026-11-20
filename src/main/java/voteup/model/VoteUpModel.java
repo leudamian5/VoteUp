@@ -353,7 +353,7 @@ public class VoteUpModel extends AbstractModel {
      * @param followee followee
      * @return {@code true} if follower follows followee
      */
-    boolean isFollowing(User follower, User followee) {
+    public boolean isFollowing(User follower, User followee) {
         return findFollow(follower, followee) != null;
     }
 
@@ -362,7 +362,7 @@ public class VoteUpModel extends AbstractModel {
      * @param blocked potentially blocked user
      * @return {@code true} if a block exists
      */
-    boolean isBlocked(User blocker, User blocked) {
+    public boolean isBlocked(User blocker, User blocked) {
         if (blocker == null || blocked == null) {
             return false;
         }

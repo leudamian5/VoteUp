@@ -74,4 +74,9 @@ public abstract class JFrameView extends JFrame implements View, ModelListener {
         this.model = model;
         registerWithModel();
     }
+
+    /**
+     * Makes this window visible and ready for interaction.
+     */
+    public abstract void showWindow();
 }

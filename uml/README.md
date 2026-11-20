@@ -53,16 +53,24 @@ Model tests under `src/test/java/voteup/model/`:
 | Moderation | `ModerationTest.java` | temp/perm ban / promote / demote / session revoke / mod delete |
 | Account | `AccountTest.java` | deleteAccount / updateProfile / getProfile / username reuse |
 
-### Run the application
+### Run the GUI application
 
 ```bash
 cd VoteUp
 gradle run
 ```
 
-**Current behavior:** `voteup.Main` constructs `VoteUpModel`, `VoteUpController`, and `LoginView`, but the Swing UI is still a stub (no usable windows yet). Process §8–9 model package slices are complete after Account; next is controller polish + Swing views (§10) and acceptance screenshots (§11).
+**Demo logins** (seeded on startup):
 
-Until the view is implemented, use **`gradle test`** to exercise model behavior.
+| Username | Password | Role |
+|----------|----------|------|
+| `admin` | `admin123` | ADMIN |
+| `alice` | `alice123` | USER (follows bob; has a tagged post) |
+| `bob` | `bob123` | USER |
+
+You can also **Register** a new account from the login screen.
+
+**Screens available for acceptance screenshots:** Login/Register, Main feed, Following feed, Tag feed, Post + replies, Profile (follow/block/edit/moderation), Leaderboard dialog, Search-users dialog, New-post / Reply dialogs.
 
 ### Generate Javadoc
 
@@ -75,7 +83,7 @@ Then open `build/docs/javadoc/index.html` in a browser.
 
 ### Notes
 
-- Persistence is still in-memory (H2 file mode comes later).
+- Persistence is still in-memory (H2 file mode comes later). Data resets when the app exits.
 - Password hashing is SHA-256 for the local demo (`voteup.util.PasswordHasher`), not production bcrypt.
 - Design lock: one engagement row per (user, post); LIKE↔DISLIKE switch sets `createdAt` to now.
 - Design lock: block removes follows in **both** directions; unblock does not restore them.
