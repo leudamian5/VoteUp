@@ -28,7 +28,7 @@ final class ViewSupport {
 
     static final Color BG = new Color(0xF4, 0xF7, 0xF5);
     static final Color PANEL = Color.WHITE;
-    static final Color ACCENT = new Color(0x1F, 0x6F, 0x5B);
+    static final Color ACCENT = new Color(0x4B, 0x26, 0xBD);
     static final Color TEXT = new Color(0x1C, 0x28, 0x2A);
     static final Color MUTED = new Color(0x5C, 0x6B, 0x6E);
     static final Font TITLE = new Font("Segoe UI", Font.BOLD, 22);

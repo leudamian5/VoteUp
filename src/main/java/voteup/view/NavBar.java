@@ -1,11 +1,16 @@
 package voteup.view;
 
+import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
 
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+
 import voteup.controller.VoteUpController;
 import voteup.model.LeaderboardPeriod;
 import voteup.model.User;
@@ -105,20 +110,32 @@ final class NavBar extends JPanel {
             return;
         }
         var standings = ctrl.getStandings(period);
-        StringBuilder sb = new StringBuilder("Top 10 — ").append(period).append('\n');
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("Top 10 — %s%n%n", period));
         if (standings.isEmpty()) {
             sb.append("(empty)");
         } else {
+            sb.append(String.format("%-4s  %-18s  %s%n", "#", "User", "Score"));
+            sb.append(String.format("%-4s  %-18s  %s%n", "----", "------------------", "-----"));
             for (int i = 0; i < standings.size(); i++) {
-                sb.append(i + 1).append(". @").append(standings.get(i).getUsername()).append('\n');
+                User u = standings.get(i);
+                int score = ctrl.getPeriodScore(u, period);
+                sb.append(String.format("%-4d  @%-17s  %d%n", i + 1, u.getUsername(), score));
             }
         }
+        JTextArea area = new JTextArea(sb.toString());
+        area.setEditable(false);
+        area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
+        area.setCaretPosition(0);
+        JScrollPane scroll = new JScrollPane(area);
+        scroll.setPreferredSize(new Dimension(360, 260));
+
         Object[] options = ctrl.getCurrentUser() != null
                 && ctrl.getCurrentUser().getRole().name().equals("ADMIN")
                 ? new Object[] {"OK", "Reset period"}
                 : new Object[] {"OK"};
         int choice = JOptionPane.showOptionDialog(
-                host, sb.toString(), "Leaderboard",
+                host, scroll, "Leaderboard",
                 JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE,
                 null, options, options[0]);
         if (choice == 1) {

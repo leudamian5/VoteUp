@@ -556,6 +556,15 @@ public class VoteUpController extends AbstractController {
     }
 
     /**
+     * @param user   user
+     * @param period period
+     * @return period net score
+     */
+    public int getPeriodScore(User user, LeaderboardPeriod period) {
+        return voteUpModel.getPeriodScore(user, period);
+    }
+
+    /**
      * @param period period to reset
      */
     public void resetLeaderboard(LeaderboardPeriod period) {
