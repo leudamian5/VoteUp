@@ -6,7 +6,6 @@ import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JTextArea;
 import javax.swing.border.EmptyBorder;
 
 import voteup.controller.Controller;
@@ -22,7 +21,7 @@ import voteup.model.VoteUpModel;
  */
 public class TagFeedView extends JFrameView {
 
-    private final JTextArea feedArea = new JTextArea();
+    private final PostFeedPanel feedPanel = new PostFeedPanel();
     private List<Post> currentPosts = List.of();
     private Tag currentTag = Tag.normalize("java");
 
@@ -50,7 +49,7 @@ public class TagFeedView extends JFrameView {
         JPanel center = new JPanel(new BorderLayout(8, 8));
         center.setOpaque(false);
         center.add(new NavBar(ctrl(), this, () -> showTag(currentTag)), BorderLayout.NORTH);
-        center.add(ViewSupport.postListScroll(feedArea), BorderLayout.CENTER);
+        center.add(feedPanel, BorderLayout.CENTER);
 
         JPanel actions = new JPanel();
         actions.setOpaque(false);
@@ -117,7 +116,7 @@ public class TagFeedView extends JFrameView {
         try {
             currentPosts = ctrl().getTagFeed(
                     ctrl().getCurrentUser(), currentTag, 0, VoteUpModel.FEED_PAGE_LIMIT);
-            ViewSupport.fillPosts(feedArea, currentPosts);
+            feedPanel.setPosts(currentPosts);
         } catch (Exception ex) {
             showError(ex.getMessage());
         }

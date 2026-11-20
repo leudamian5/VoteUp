@@ -6,7 +6,6 @@ import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 
@@ -23,7 +22,7 @@ import voteup.model.User;
  */
 public class PostPageView extends JFrameView {
 
-    private final JTextArea threadArea = new JTextArea();
+    private final PostFeedPanel threadPanel = new PostFeedPanel();
     private Post rootPost;
     private List<Post> thread = List.of();
 
@@ -55,7 +54,7 @@ public class PostPageView extends JFrameView {
                 showPost(rootPost);
             }
         }), BorderLayout.NORTH);
-        center.add(ViewSupport.postListScroll(threadArea), BorderLayout.CENTER);
+        center.add(threadPanel, BorderLayout.CENTER);
 
         JPanel actions = new JPanel();
         actions.setOpaque(false);
@@ -92,7 +91,10 @@ public class PostPageView extends JFrameView {
         User me = ctrl().getCurrentUser();
         JTextField text = new JTextField();
         JTextField image = new JTextField();
-        Object[] fields = {"Text:", text, "Image URL/path (optional):", image};
+        Object[] fields = {
+                "Text:", text,
+                "Image (optional):", image
+        };
         int ok = JOptionPane.showConfirmDialog(this, fields, "Reply", JOptionPane.OK_CANCEL_OPTION);
         if (ok != JOptionPane.OK_OPTION) {
             return;
@@ -166,7 +168,7 @@ public class PostPageView extends JFrameView {
         try {
             thread = ctrl().getPostWithReplies(ctrl().getCurrentUser(), post);
             rootPost = thread.isEmpty() ? post : thread.get(0);
-            ViewSupport.fillPosts(threadArea, thread);
+            threadPanel.setPosts(thread);
             setTitle("VoteUp — Post by @" + rootPost.getAuthor().getUsername());
         } catch (Exception ex) {
             showError(ex.getMessage());

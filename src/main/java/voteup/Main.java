@@ -39,8 +39,9 @@ public class Main {
 
             model.createPost(alice, "Welcome to VoteUp! Try liking this post.", null,
                     java.util.List.of(new Tag("welcome"), new Tag("java")));
-            model.createPost(bob, "Bob here — follow me to see this on Following.", null,
-                    java.util.List.of(new Tag("intro")));
+            model.createPost(bob, "Bob here — follow me to see this on Following.",
+                    "classpath:voteup/demo/sample.png",
+                    java.util.List.of(new Tag("intro"), new Tag("photo")));
             model.followUser(alice, bob);
         } catch (Exception ex) {
             System.err.println("Demo seed failed: " + ex.getMessage());

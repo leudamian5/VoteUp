@@ -72,6 +72,24 @@ You can also **Register** a new account from the login screen.
 
 **Screens available for acceptance screenshots:** Login/Register, Main feed, Following feed, Tag feed, Post + replies, Profile (follow/block/edit/moderation), Leaderboard dialog, Search-users dialog, New-post / Reply dialogs.
 
+### Attaching images to posts
+
+In **New post** / **Reply**, the image field accepts any of these formats (Swing loads and scales the picture in the feed):
+
+| Format | Example |
+|--------|---------|
+| HTTP(S) URL | `https://example.com/pic.jpg` |
+| Local absolute path | `C:\Users\You\Pictures\cat.png` |
+| Local relative path | `demo\cat.png` (relative to the process working directory, usually `VoteUp/`) |
+| `file:` URI | `file:///C:/Users/You/Pictures/cat.png` |
+| Classpath resource | `classpath:voteup/demo/sample.png` |
+
+Notes:
+
+- Supported types are whatever Java `ImageIO` can read on your JDK (typically **PNG, JPEG, GIF, BMP**).
+- A bundled demo image ships at `src/main/resources/voteup/demo/sample.png`. Bob’s seeded post uses `classpath:voteup/demo/sample.png`.
+- If the file/URL cannot be loaded, the post still appears and shows a small failure hint under the text.
+
 ### Generate Javadoc
 
 ```bash
