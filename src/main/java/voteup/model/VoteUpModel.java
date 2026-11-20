@@ -181,12 +181,57 @@ public class VoteUpModel extends AbstractModel {
         if (user == null || !users.containsKey(user.getUserId())) {
             throw new AuthenticationException("User is not authenticated");
         }
+        revokeSessionsFor(user);
+        notifyChanged(new ModelEvent(this, 0, "USER_LOGOUT", user));
+    }
+
+    private void revokeSessionsFor(User user) {
         for (SessionToken token : sessions.values()) {
             if (token.getUser().getUserId().equals(user.getUserId()) && !token.isRevoked()) {
                 token.revoke();
             }
         }
-        notifyChanged(new ModelEvent(this, 0, "USER_LOGOUT", user));
+    }
+
+    private void requireStaff(User actor) throws AuthorizationException {
+        if (actor == null || !users.containsKey(actor.getUserId()) || actor.isDeleted()) {
+            throw new AuthorizationException("Not authorized");
+        }
+        if (actor.getRole() != Role.MOD && actor.getRole() != Role.ADMIN) {
+            throw new AuthorizationException("Moderator or admin required");
+        }
+    }
+
+    private void requireAdmin(User actor) throws AuthorizationException {
+        if (actor == null || !users.containsKey(actor.getUserId()) || actor.isDeleted()) {
+            throw new AuthorizationException("Not authorized");
+        }
+        if (actor.getRole() != Role.ADMIN) {
+            throw new AuthorizationException("Admin required");
+        }
+    }
+
+    private User requireModerationTarget(User target) throws ModerationException {
+        if (target == null || target.getUserId() == null || !users.containsKey(target.getUserId())) {
+            throw new ModerationException("Target user not found");
+        }
+        User stored = users.get(target.getUserId());
+        if (stored.isDeleted()) {
+            throw new ModerationException("Target user not found");
+        }
+        return stored;
+    }
+
+    private void assertCanBan(User actor, User target) throws ModerationException {
+        if (actor.getUserId().equals(target.getUserId())) {
+            throw new ModerationException("Cannot ban yourself");
+        }
+        if (target.getRole() == Role.ADMIN) {
+            throw new ModerationException("Cannot ban an admin");
+        }
+        if (target.getRole() == Role.MOD && actor.getRole() != Role.ADMIN) {
+            throw new ModerationException("Only an admin may ban a moderator");
+        }
     }
 
     /**
@@ -996,7 +1041,18 @@ public class VoteUpModel extends AbstractModel {
      */
     public void issueTempBan(User mod, User target, int durationHours)
             throws AuthorizationException, ModerationException, ValidationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireStaff(mod);
+        if (durationHours < 1) {
+            throw new ValidationException("Ban duration must be at least 1 hour");
+        }
+        User stored = requireModerationTarget(target);
+        assertCanBan(mod, stored);
+        if (stored.isPermanentlyBanned()) {
+            throw new ModerationException("User is permanently banned");
+        }
+        stored.setBanExpiresAt(now().plusHours(durationHours));
+        revokeSessionsFor(stored);
+        notifyChanged(new ModelEvent(this, 0, "USER_TEMP_BANNED", stored));
     }
 
     /**
@@ -1009,7 +1065,16 @@ public class VoteUpModel extends AbstractModel {
      */
     public void issuePermBan(User mod, User target)
             throws AuthorizationException, ModerationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireStaff(mod);
+        User stored = requireModerationTarget(target);
+        assertCanBan(mod, stored);
+        if (stored.isPermanentlyBanned()) {
+            throw new ModerationException("User is already permanently banned");
+        }
+        stored.setPermanentlyBanned(true);
+        stored.setBanExpiresAt(null);
+        revokeSessionsFor(stored);
+        notifyChanged(new ModelEvent(this, 0, "USER_PERM_BANNED", stored));
     }
 
     /**
@@ -1022,7 +1087,13 @@ public class VoteUpModel extends AbstractModel {
      */
     public void promoteToMod(User admin, User target)
             throws AuthorizationException, ModerationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAdmin(admin);
+        User stored = requireModerationTarget(target);
+        if (stored.getRole() != Role.USER) {
+            throw new ModerationException("Only a USER can be promoted to MOD");
+        }
+        stored.setRole(Role.MOD);
+        notifyChanged(new ModelEvent(this, 0, "USER_PROMOTED", stored));
     }
 
     /**
@@ -1035,7 +1106,13 @@ public class VoteUpModel extends AbstractModel {
      */
     public void demoteFromMod(User admin, User target)
             throws AuthorizationException, ModerationException {
-        throw new UnsupportedOperationException("Not implemented yet");
+        requireAdmin(admin);
+        User stored = requireModerationTarget(target);
+        if (stored.getRole() != Role.MOD) {
+            throw new ModerationException("Only a MOD can be demoted to USER");
+        }
+        stored.setRole(Role.USER);
+        notifyChanged(new ModelEvent(this, 0, "USER_DEMOTED", stored));
     }
 
     /**
