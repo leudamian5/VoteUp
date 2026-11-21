@@ -86,8 +86,25 @@ public class Post {
      *
      * @param createdAt creation timestamp
      */
-    void setCreatedAt(LocalDateTime createdAt) {
+    /**
+     * @param createdAt creation timestamp
+     */
+    public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    /**
+     * @param likeCount like count (persistence restore)
+     */
+    public void setLikeCount(int likeCount) {
+        this.likeCount = likeCount;
+    }
+
+    /**
+     * @param dislikeCount dislike count (persistence restore)
+     */
+    public void setDislikeCount(int dislikeCount) {
+        this.dislikeCount = dislikeCount;
     }
 
     /** @return parent post or {@code null} */
@@ -161,12 +178,12 @@ public class Post {
     }
 
     /** @return like count */
-    int getLikeCount() {
+    public int getLikeCount() {
         return likeCount;
     }
 
     /** @return dislike count */
-    int getDislikeCount() {
+    public int getDislikeCount() {
         return dislikeCount;
     }
 

@@ -5,6 +5,8 @@ import voteup.model.Role;
 import voteup.model.Tag;
 import voteup.model.User;
 import voteup.model.VoteUpModel;
+import voteup.model.exception.StorageException;
+import voteup.persistence.H2VoteUpStore;
 
 /**
  * Application entry point for VoteUp.
@@ -12,16 +14,26 @@ import voteup.model.VoteUpModel;
 public class Main {
 
     /**
-     * Launches VoteUp by creating the MVC triad, seeding demo data, and
-     * opening the login view.
+     * Launches VoteUp with a shared local H2 file database, seeds demo data when
+     * the DB is empty, and opens the login view.
      *
      * @param args command-line arguments (unused)
      */
     public static void main(String[] args) {
-        VoteUpModel model = new VoteUpModel();
-        seedDemoData(model);
-        VoteUpController controller = new VoteUpController(model);
-        controller.start();
+        try {
+            H2VoteUpStore store = new H2VoteUpStore();
+            store.ensureSchema();
+            VoteUpModel model = new VoteUpModel(store);
+            if (store.isEmpty()) {
+                seedDemoData(model);
+                model.flush();
+            }
+            VoteUpController controller = new VoteUpController(model);
+            controller.start();
+        } catch (StorageException | IllegalStateException ex) {
+            System.err.println("Failed to start VoteUp with H2 store: " + ex.getMessage());
+            ex.printStackTrace();
+        }
     }
 
     /**

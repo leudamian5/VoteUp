@@ -46,7 +46,10 @@ public class Achievement {
     /**
      * @param dateEarned when earned (model clock / tests)
      */
-    void setDateEarned(LocalDateTime dateEarned) {
+    /**
+     * @param dateEarned when earned
+     */
+    public void setDateEarned(LocalDateTime dateEarned) {
         this.dateEarned = dateEarned;
     }
 

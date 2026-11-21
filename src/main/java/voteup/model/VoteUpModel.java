@@ -24,7 +24,9 @@ import voteup.model.exception.ReplyBlockedException;
 import voteup.model.exception.SocialException;
 import voteup.model.exception.UserNotFoundException;
 import voteup.model.exception.UsernameTakenException;
+import voteup.model.exception.StorageException;
 import voteup.model.exception.ValidationException;
+import voteup.persistence.H2VoteUpStore;
 import voteup.util.PasswordHasher;
 
 /**
@@ -59,6 +61,9 @@ public class VoteUpModel extends AbstractModel {
     private final Map<String, SessionToken> sessions;
     private final Map<LeaderboardPeriod, Leaderboard> leaderboards;
 
+    /** Optional H2 snapshot store; {@code null} for pure in-memory (unit tests). */
+    private final H2VoteUpStore store;
+
     /** Clock for auth/lockout timing; overridable in tests. */
     private Supplier<LocalDateTime> clock = LocalDateTime::now;
 
@@ -66,6 +71,15 @@ public class VoteUpModel extends AbstractModel {
      * Creates an empty in-memory model with three leaderboard periods.
      */
     public VoteUpModel() {
+        this(null);
+    }
+
+    /**
+     * Creates a model optionally backed by an H2 file store.
+     *
+     * @param store H2 store, or {@code null} for in-memory only
+     */
+    public VoteUpModel(H2VoteUpStore store) {
         this.users = new HashMap<>();
         this.posts = new HashMap<>();
         this.engagements = new ArrayList<>();
@@ -79,6 +93,136 @@ public class VoteUpModel extends AbstractModel {
                 new Leaderboard("LB_WEEKLY", LeaderboardPeriod.WEEKLY));
         this.leaderboards.put(LeaderboardPeriod.MONTHLY,
                 new Leaderboard("LB_MONTHLY", LeaderboardPeriod.MONTHLY));
+        this.store = store;
+        if (store != null) {
+            try {
+                store.ensureSchema();
+                if (!store.isEmpty()) {
+                    store.loadInto(this);
+                }
+            } catch (StorageException ex) {
+                throw new IllegalStateException(ex);
+            }
+        }
+    }
+
+    private void persist() {
+        if (store == null) {
+            return;
+        }
+        try {
+            store.save(this);
+        } catch (StorageException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    /**
+     * Forces a snapshot write (e.g. after seed mutations that set fields directly).
+     */
+    public void flush() {
+        persist();
+    }
+
+    /**
+     * Reloads domain state from the H2 store. No-op when running in-memory only.
+     * Process-local sessions are left in place; callers should re-bind user refs.
+     */
+    public void reloadFromStore() {
+        if (store == null) {
+            return;
+        }
+        try {
+            store.loadInto(this);
+            notifyChanged(new ModelEvent(this, 0, "STORE_RELOADED", null));
+        } catch (StorageException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    /**
+     * @return {@code true} if this model is backed by H2
+     */
+    public boolean isPersistent() {
+        return store != null;
+    }
+
+    /**
+     * @param userId user id
+     * @return user or {@code null}
+     */
+    public User findUserById(String userId) {
+        if (userId == null) {
+            return null;
+        }
+        return users.get(userId);
+    }
+
+    /** @return users snapshot for persistence */
+    public List<User> getUsersSnapshot() {
+        return new ArrayList<>(users.values());
+    }
+
+    /** @return posts snapshot for persistence */
+    public List<Post> getPostsSnapshot() {
+        return new ArrayList<>(posts.values());
+    }
+
+    /** @return engagements snapshot for persistence */
+    public List<Engagement> getEngagementsSnapshot() {
+        return new ArrayList<>(engagements);
+    }
+
+    /** @return follows snapshot for persistence */
+    public List<Follow> getFollowsSnapshot() {
+        return new ArrayList<>(follows);
+    }
+
+    /** @return blocks snapshot for persistence */
+    public List<Block> getBlocksSnapshot() {
+        return new ArrayList<>(blocks);
+    }
+
+    /**
+     * Replaces in-memory domain collections after an H2 load. Sessions are not cleared.
+     *
+     * @param loadedUsers       users by id
+     * @param loadedPosts       posts by id
+     * @param loadedEngagements engagements
+     * @param loadedFollows     follows
+     * @param loadedBlocks      blocks
+     * @param leaderboardIds    period → id (unused; constructor ids kept)
+     * @param leaderboardResets period → last reset time
+     */
+    public void replaceDomainState(
+            Map<String, User> loadedUsers,
+            Map<String, Post> loadedPosts,
+            List<Engagement> loadedEngagements,
+            List<Follow> loadedFollows,
+            List<Block> loadedBlocks,
+            Map<LeaderboardPeriod, String> leaderboardIds,
+            Map<LeaderboardPeriod, LocalDateTime> leaderboardResets) {
+        users.clear();
+        users.putAll(loadedUsers);
+        posts.clear();
+        posts.putAll(loadedPosts);
+        engagements.clear();
+        engagements.addAll(loadedEngagements);
+        follows.clear();
+        follows.addAll(loadedFollows);
+        blocks.clear();
+        blocks.addAll(loadedBlocks);
+        for (LeaderboardPeriod period : LeaderboardPeriod.values()) {
+            Leaderboard board = leaderboards.get(period);
+            if (board == null) {
+                continue;
+            }
+            board.getTopTenUsers().clear();
+            LocalDateTime resetAt = leaderboardResets.get(period);
+            if (resetAt != null) {
+                board.setLastResetTime(resetAt);
+            }
+        }
     }
 
     /**
@@ -119,6 +263,7 @@ public class VoteUpModel extends AbstractModel {
         User user = new User(userId, username.trim(), PasswordHasher.hash(password));
         users.put(userId, user);
         notifyChanged(new ModelEvent(this, 0, "USER_REGISTERED", user));
+        persist();
         return user;
     }
 
@@ -155,6 +300,7 @@ public class VoteUpModel extends AbstractModel {
 
         if (!PasswordHasher.matches(password, user.getPasswordHash())) {
             recordFailedLogin(user, now);
+            persist();
             throw new AuthenticationException("Invalid credentials");
         }
 
@@ -168,6 +314,7 @@ public class VoteUpModel extends AbstractModel {
                 now.plusHours(SESSION_HOURS));
         sessions.put(token.getTokenId(), token);
         notifyChanged(new ModelEvent(this, 0, "USER_LOGIN", user));
+        persist();
         return token;
     }
 
@@ -510,6 +657,7 @@ public class VoteUpModel extends AbstractModel {
         stored.setUsername("deleted_" + stored.getUserId());
         revokeSessionsFor(stored);
         notifyChanged(new ModelEvent(this, 0, "USER_DELETED", stored));
+        persist();
     }
 
     /**
@@ -528,6 +676,7 @@ public class VoteUpModel extends AbstractModel {
         stored.setBio(bio);
         stored.setProfilePictureUrl(profilePictureUrl);
         notifyChanged(new ModelEvent(this, 0, "PROFILE_UPDATED", stored));
+        persist();
     }
 
     /**
@@ -575,6 +724,7 @@ public class VoteUpModel extends AbstractModel {
         }
         follows.add(new Follow(actor, followee));
         notifyChanged(new ModelEvent(this, 0, "USER_FOLLOWED", followee));
+        persist();
     }
 
     /**
@@ -594,6 +744,7 @@ public class VoteUpModel extends AbstractModel {
         }
         follows.remove(existing);
         notifyChanged(new ModelEvent(this, 0, "USER_UNFOLLOWED", followee));
+        persist();
     }
 
     /**
@@ -618,6 +769,7 @@ public class VoteUpModel extends AbstractModel {
         removeFollowsBothWays(actor, blocked);
         blocks.add(new Block(actor, blocked));
         notifyChanged(new ModelEvent(this, 0, "USER_BLOCKED", blocked));
+        persist();
     }
 
     /**
@@ -637,6 +789,7 @@ public class VoteUpModel extends AbstractModel {
         }
         blocks.remove(existing);
         notifyChanged(new ModelEvent(this, 0, "USER_UNBLOCKED", blocked));
+        persist();
     }
 
     /**
@@ -668,6 +821,7 @@ public class VoteUpModel extends AbstractModel {
         }
         posts.put(post.getPostId(), post);
         notifyChanged(new ModelEvent(this, 0, "POST_CREATED", post));
+        persist();
         return post;
     }
 
@@ -702,6 +856,7 @@ public class VoteUpModel extends AbstractModel {
         reply.setCreatedAt(now());
         posts.put(reply.getPostId(), reply);
         notifyChanged(new ModelEvent(this, 0, "REPLY_CREATED", reply));
+        persist();
         return reply;
     }
 
@@ -726,6 +881,7 @@ public class VoteUpModel extends AbstractModel {
         stored.setDeleted(true);
         stored.setDeletedBy(actor);
         notifyChanged(new ModelEvent(this, 0, "POST_DELETED", stored));
+        persist();
     }
 
     /**
@@ -749,6 +905,7 @@ public class VoteUpModel extends AbstractModel {
             }
         }
         notifyChanged(new ModelEvent(this, 0, "POST_TAGS_ADDED", stored));
+        persist();
     }
 
     /**
@@ -772,6 +929,7 @@ public class VoteUpModel extends AbstractModel {
             }
         }
         notifyChanged(new ModelEvent(this, 0, "POST_TAGS_REMOVED", stored));
+        persist();
     }
 
     /**
@@ -800,6 +958,7 @@ public class VoteUpModel extends AbstractModel {
             engagements.add(created);
             applyCountDelta(stored, null, type);
             notifyChanged(new ModelEvent(this, 0, "ENGAGEMENT_APPLIED", created));
+            persist();
             return;
         }
 
@@ -811,6 +970,7 @@ public class VoteUpModel extends AbstractModel {
         existing.setType(type);
         existing.setCreatedAt(now());
         notifyChanged(new ModelEvent(this, 0, "ENGAGEMENT_SWITCHED", existing));
+        persist();
     }
 
     /**
@@ -836,6 +996,7 @@ public class VoteUpModel extends AbstractModel {
         engagements.remove(existing);
         applyCountDelta(stored, existing.getType(), null);
         notifyChanged(new ModelEvent(this, 0, "ENGAGEMENT_REMOVED", stored));
+        persist();
     }
 
     /**
@@ -1074,6 +1235,7 @@ public class VoteUpModel extends AbstractModel {
         stored.setBanExpiresAt(now().plusHours(durationHours));
         revokeSessionsFor(stored);
         notifyChanged(new ModelEvent(this, 0, "USER_TEMP_BANNED", stored));
+        persist();
     }
 
     /**
@@ -1096,6 +1258,7 @@ public class VoteUpModel extends AbstractModel {
         stored.setBanExpiresAt(null);
         revokeSessionsFor(stored);
         notifyChanged(new ModelEvent(this, 0, "USER_PERM_BANNED", stored));
+        persist();
     }
 
     /**
@@ -1115,6 +1278,7 @@ public class VoteUpModel extends AbstractModel {
         }
         stored.setRole(Role.MOD);
         notifyChanged(new ModelEvent(this, 0, "USER_PROMOTED", stored));
+        persist();
     }
 
     /**
@@ -1134,13 +1298,14 @@ public class VoteUpModel extends AbstractModel {
         }
         stored.setRole(Role.USER);
         notifyChanged(new ModelEvent(this, 0, "USER_DEMOTED", stored));
+        persist();
     }
 
     /**
      * @param period leaderboard period
      * @return leaderboard row
      */
-    Leaderboard getLeaderboard(LeaderboardPeriod period) {
+    public Leaderboard getLeaderboard(LeaderboardPeriod period) {
         return leaderboards.get(period);
     }
 
@@ -1198,6 +1363,7 @@ public class VoteUpModel extends AbstractModel {
         board.reset();
         board.setLastResetTime(earnedAt);
         notifyChanged(new ModelEvent(this, 0, "LEADERBOARD_RESET", period));
+        persist();
     }
 
     private Map<String, Integer> computePeriodScores(Leaderboard board) {

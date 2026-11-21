@@ -8,6 +8,8 @@ import voteup.model.EngagementType;
 import voteup.model.LeaderboardPeriod;
 import voteup.model.Post;
 import voteup.model.Role;
+import java.time.LocalDateTime;
+
 import voteup.model.SessionToken;
 import voteup.model.Tag;
 import voteup.model.User;
@@ -87,6 +89,37 @@ public class VoteUpController extends AbstractController {
      */
     public SessionToken getCurrentSession() {
         return currentSession;
+    }
+
+    /**
+     * Reloads shared H2 state into the model and re-binds the current session user.
+     * No-op when the model is in-memory only.
+     */
+    public void reloadFromStore() {
+        String userId = getCurrentUser() == null ? null : getCurrentUser().getUserId();
+        boolean wasRevoked = currentSession != null && currentSession.isRevoked();
+        LocalDateTime expiresAt = currentSession == null ? null : currentSession.getExpiresAt();
+        String tokenId = currentSession == null ? null : currentSession.getTokenId();
+
+        voteUpModel.reloadFromStore();
+
+        if (userId == null) {
+            return;
+        }
+        User fresh = voteUpModel.findUserById(userId);
+        if (fresh == null || fresh.isDeleted()) {
+            currentSession = null;
+            showLogin();
+            return;
+        }
+        SessionToken rebound = new SessionToken(
+                tokenId == null ? java.util.UUID.randomUUID().toString() : tokenId,
+                fresh,
+                expiresAt == null ? fresh.getCreatedAt().plusHours(VoteUpModel.SESSION_HOURS) : expiresAt);
+        if (wasRevoked) {
+            rebound.revoke();
+        }
+        currentSession = rebound;
     }
 
     /**

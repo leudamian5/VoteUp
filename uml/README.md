@@ -72,6 +72,29 @@ You can also **Register** a new account from the login screen.
 
 **Screens available for acceptance screenshots:** Login/Register, Main feed, Following feed, Tag feed, Post + replies, Profile (follow/block/edit/moderation), Leaderboard dialog, Search-users dialog, New-post / Reply dialogs.
 
+### Shared local H2 database (two clients)
+
+The GUI uses an H2 **file** database at `VoteUp/data/voteup` with `AUTO_SERVER=TRUE`, so two `gradle run` processes can share the same data.
+
+```bash
+cd VoteUp
+gradle run   # client A
+# in a second terminal, also from VoteUp/:
+gradle run   # client B
+```
+
+Workflow for multi-user demos:
+
+1. Log in as different users on each client.
+2. Make a change on client A (new post, like, follow, etc.).
+3. On client B, click **Refresh** — it reloads from H2, then redraws the current screen.
+
+Notes:
+
+- Demo users are seeded **only when the DB has no users**. Later runs keep your data.
+- To reset everything, stop all VoteUp processes and delete the `VoteUp/data/` folder (gitignored).
+- Unit tests still use pure in-memory models (no H2).
+
 ### Attaching images to posts
 
 In **New post** / **Reply**, the image field accepts any of these formats (Swing loads and scales the picture in the feed):
@@ -101,7 +124,7 @@ Then open `build/docs/javadoc/index.html` in a browser.
 
 ### Notes
 
-- Persistence is still in-memory (H2 file mode comes later). Data resets when the app exits.
+- GUI persistence is local H2 file mode (`./data/voteup`, AUTO_SERVER). Click **Refresh** on other clients to pick up changes.
 - Password hashing is SHA-256 for the local demo (`voteup.util.PasswordHasher`), not production bcrypt.
 - Design lock: one engagement row per (user, post); LIKE↔DISLIKE switch sets `createdAt` to now.
 - Design lock: block removes follows in **both** directions; unblock does not restore them.

@@ -11,4 +11,12 @@ public class StorageException extends VoteUpException {
     public StorageException(String message) {
         super(message);
     }
+
+    /**
+     * @param message detail message
+     * @param cause   underlying cause
+     */
+    public StorageException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

@@ -88,6 +88,12 @@ final class NavBar extends JPanel {
         });
         board.addActionListener(e -> showLeaderboard(ctrl, host));
         refresh.addActionListener(e -> {
+            try {
+                ctrl.reloadFromStore();
+            } catch (Exception ex) {
+                ViewSupport.showError(host, ex.getMessage());
+                return;
+            }
             if (onRefresh != null) {
                 onRefresh.run();
             }

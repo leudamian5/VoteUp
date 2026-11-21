@@ -35,4 +35,11 @@ public class Follow {
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
+
+    /**
+     * @param createdAt creation timestamp
+     */
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
 }

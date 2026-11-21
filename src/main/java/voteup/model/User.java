@@ -191,7 +191,10 @@ public class User {
      *
      * @param createdAt creation timestamp
      */
-    void setCreatedAt(LocalDateTime createdAt) {
+    /**
+     * @param createdAt creation timestamp
+     */
+    public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
 
